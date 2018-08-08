@@ -1,0 +1,12 @@
+[submodule "3rdparty/etcd"]
+	path = _3rdparty/etcd
+	url = https://github.com/coreos/etcd.git
+[submodule "3rdparty/kubernetes"]
+	path = _3rdparty/kubernetes
+	url = https://github.com/kubernetes/kubernetes.git
+[submodule "_3rdparty/etcd"]
+	path = _3rdparty/etcd
+	url = https://github.com/coreos/etcd.git
+[submodule "_3rdparty/kubernetes"]
+	path = _3rdparty/kubernetes
+	url = https://github.com/kubernetes/kubernetes.git
