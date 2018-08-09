@@ -12,7 +12,9 @@ import (
 
 func CertHelper(pkidir, pkiname string) (*pki.RSACertificate, *pki.RSACertificate, *pki.RSACertificate, error) {
 	certmgr := pki.NewManager(pkidir)
-	ca, err := certmgr.NewSelfSignedCert(pkiname+"-CA", 1)
+	ca, err := certmgr.NewSelfSignedCert(pkiname+"-CA", pkix.Name{
+		CommonName: pkiname+"-CA",
+	}, 1)
 	if err != nil {
 		return nil, nil, nil, errors.Wrap(err, "ca creation failed")
 	}
@@ -64,7 +66,7 @@ func StartKubeAPIServerForTest(exitHandler helpers.ExitHandler) (*KubeAPIServerH
 	}
 
 	uut := NewKubeAPIServerHandler(bin, kubeServer.CertPath, kubeServer.KeyPath, kubeClient.CertPath, kubeClient.KeyPath,
-		kubeCA.CertPath, etcdClientCert.CertPath, etcdClientCert.KeyPath, etcdCA.CertPath, outputHandler, exitHandler)
+		kubeCA.CertPath, etcdClientCert.CertPath, etcdClientCert.KeyPath, etcdCA.CertPath, outputHandler, exitHandler, "0.0.0.0")
 	err = uut.Start()
 	if err != nil {
 		return nil, nil, nil, nil, errors.Wrap(err, "kube apiserver didn't launch")

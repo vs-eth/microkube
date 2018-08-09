@@ -78,7 +78,7 @@ func (handler *HandlerHelper) healthCheckFun(ca, client *pki.RSACertificate) err
 		if uerr, ok := err.(*url.Error); ok {
 			if operr, ok := uerr.Err.(*net.OpError); ok {
 				if operr.Op == "dial" {
-					if waitTime > time.Second*4 {
+					if waitTime > time.Second*13 {
 						return errors.New("Timeout waiting for service to come up")
 					}
 					time.Sleep(waitTime)

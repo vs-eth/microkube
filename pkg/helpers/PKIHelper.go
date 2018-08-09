@@ -8,7 +8,9 @@ import (
 
 func CertHelper(pkidir, pkiname string) (*pki.RSACertificate, *pki.RSACertificate, *pki.RSACertificate, error) {
 	certmgr := pki.NewManager(pkidir)
-	ca, err := certmgr.NewSelfSignedCert(pkiname+"-CA", 1)
+	ca, err := certmgr.NewSelfSignedCert(pkiname+"-CA",pkix.Name{
+		CommonName: pkiname+"-CA",
+	}, 1)
 	if err != nil {
 		return nil, nil, nil, errors.Wrap(err, "ca creation failed")
 	}

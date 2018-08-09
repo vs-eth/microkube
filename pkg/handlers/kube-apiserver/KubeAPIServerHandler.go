@@ -21,10 +21,11 @@ type KubeAPIServerHandler struct {
 	etcdClientKey  string
 	cmd            *helpers.CmdHandler
 	out            helpers.OutputHander
+	nodeRef string
 }
 
 func NewKubeAPIServerHandler(binary, kubeServerCert, kubeServerKey, kubeClientCert, kubeClientKey, kubeCACert,
-	etcdClientCert, etcdClientKey, etcdCACert string, out helpers.OutputHander, exit helpers.ExitHandler) *KubeAPIServerHandler {
+	etcdClientCert, etcdClientKey, etcdCACert string, out helpers.OutputHander, exit helpers.ExitHandler, nodeRef string) *KubeAPIServerHandler {
 	obj := &KubeAPIServerHandler{
 		binary:         binary,
 		kubeServerCert: kubeServerCert,
@@ -37,6 +38,7 @@ func NewKubeAPIServerHandler(binary, kubeServerCert, kubeServerKey, kubeClientCe
 		etcdCACert:     etcdCACert,
 		cmd:            nil,
 		out:            out,
+		nodeRef: nodeRef,
 	}
 	obj.HandlerHelper = *helpers.NewHandlerHelper(exit, obj.healthCheckFun, "https://localhost:7443/healthz",
 		obj.stop, obj.Start)
@@ -52,7 +54,7 @@ func (handler *KubeAPIServerHandler) stop() {
 func (handler *KubeAPIServerHandler) Start() error {
 	handler.cmd = helpers.NewCmdHandler(handler.binary, []string{
 		"--bind-address",
-		"0.0.0.0",
+		handler.nodeRef,
 		"--insecure-port",
 		"0",
 		"--secure-port",
