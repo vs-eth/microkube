@@ -2,7 +2,7 @@ package etcd
 
 import (
 	"github.com/pkg/errors"
-	"github.com/uubk/microkube/pkg/handlers"
+	"github.com/uubk/microkube/pkg/helpers"
 	"github.com/uubk/microkube/pkg/pki"
 	"io/ioutil"
 	"os"
@@ -19,12 +19,12 @@ func GetBinary(name string) (string, error) {
 	return wd, nil
 }
 
-func StartETCDForTest(exitHandler handlers.ExitHandler) (*EtcdHandler, *pki.RSACertificate, *pki.RSACertificate, error) {
+func StartETCDForTest(exitHandler helpers.ExitHandler) (*EtcdHandler, *pki.RSACertificate, *pki.RSACertificate, error) {
 	tmpdir, err := ioutil.TempDir("", "microkube-unittests-etcd")
 	if err != nil {
 		errors.Wrap(err, "tempdir creation failed")
 	}
-	ca, server, client, err := handlers.CertHelper(tmpdir, "etcd-unittest")
+	ca, server, client, err := helpers.CertHelper(tmpdir, "etcd-unittest")
 	if err != nil {
 		return nil, nil, nil, errors.Wrap(err, "error in PKI handler")
 	}
@@ -40,17 +40,17 @@ func StartETCDForTest(exitHandler handlers.ExitHandler) (*EtcdHandler, *pki.RSAC
 	}
 
 	// UUT
-	handler := NewHandler(tmpdir, wd, server.CertPath, server.KeyPath, ca.CertPath, outputHandler, 0, exitHandler)
+	handler := NewEtcdHandler(tmpdir, wd, server.CertPath, server.KeyPath, ca.CertPath, outputHandler, 0, exitHandler)
 	err = handler.Start()
 	if err != nil {
 		return nil, nil, nil, errors.Wrap(err, "etcd startup failed")
 	}
 
-	healthMessage := make(chan handlers.HealthMessage, 1)
+	healthMessage := make(chan helpers.HealthMessage, 1)
 	handler.EnableHealthChecks(ca, client, healthMessage, false)
 	msg := <-healthMessage
 	if !msg.IsHealthy {
-		return nil, nil, nil, errors.Wrap(err, "ETCD unhealthy: ")
+		return nil, nil, nil, errors.Wrap(msg.Error, "ETCD unhealthy: ")
 	}
 
 	return handler, ca, client, nil

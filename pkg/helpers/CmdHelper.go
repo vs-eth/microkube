@@ -1,4 +1,4 @@
-package handlers
+package helpers
 
 import (
 	"github.com/pkg/errors"
@@ -6,14 +6,6 @@ import (
 	"os/exec"
 	"os/signal"
 )
-
-type ExitHandler func(success bool, exitError *exec.ExitError)
-type OutputHander func(output []byte)
-
-type HealthMessage struct {
-	IsHealthy bool
-	Error     error
-}
 
 type CmdHandler struct {
 	binary string
@@ -24,7 +16,7 @@ type CmdHandler struct {
 	stderr OutputHander
 }
 
-func NewHandler(binary string, args []string, exit ExitHandler, stdout OutputHander, stderr OutputHander) *CmdHandler {
+func NewCmdHandler(binary string, args []string, exit ExitHandler, stdout OutputHander, stderr OutputHander) *CmdHandler {
 	return &CmdHandler{
 		binary: binary,
 		args:   args,
