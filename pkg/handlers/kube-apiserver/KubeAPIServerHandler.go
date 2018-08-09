@@ -1,10 +1,11 @@
 package kube_apiserver
 
 import (
-	"encoding/json"
-	"github.com/pkg/errors"
+		"github.com/pkg/errors"
 	"github.com/uubk/microkube/pkg/helpers"
 	"io"
+	"io/ioutil"
+	"strings"
 )
 
 type KubeAPIServerHandler struct {
@@ -56,6 +57,10 @@ func (handler *KubeAPIServerHandler) Start() error {
 		"0",
 		"--secure-port",
 		"7443",
+		"--kubernetes-service-node-port",
+		"7443",
+		"--service-node-port-range",
+		"7000-9000",
 		"--allow-privileged",
 		"--anonymous-auth",
 		"false",
@@ -86,16 +91,12 @@ func (handler *KubeAPIServerHandler) Start() error {
 }
 
 func (handler *KubeAPIServerHandler) healthCheckFun(responseBin *io.ReadCloser) error {
-	type EtcdStatus struct {
-		Health string `json:"health"`
-	}
-	response := EtcdStatus{}
-	err := json.NewDecoder(*responseBin).Decode(&response)
+	str, err := ioutil.ReadAll(*responseBin)
 	if err != nil {
-		return errors.Wrap(err, "JSON decode of response failed")
+		return err
 	}
-	if response.Health != "true" {
-		return errors.Wrap(err, "etcd is unhealthy!")
+	if strings.Trim(string(str), " \r\n") != "ok" {
+		return errors.New("Health != ok: " + string(str))
 	}
 	return nil
 }

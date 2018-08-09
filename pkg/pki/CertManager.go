@@ -95,7 +95,7 @@ func (manager *CertManager) NewSelfSignedCert(name string, serial int64) (*RSACe
 	return manager.writeCertToFiles(name, privateKey, &cert, &certTmpl)
 }
 
-func (manager *CertManager) NewCert(name string, serial int64, isServer bool, sans []string, ca *RSACertificate) (*RSACertificate, error) {
+func (manager *CertManager) NewCert(name string, x509Name pkix.Name, serial int64, isServer bool, sans []string, ca *RSACertificate) (*RSACertificate, error) {
 	// Generate cert
 	privateKey, err := rsa.GenerateKey(rand.Reader, manager.keysize)
 	if err != nil {
@@ -103,9 +103,7 @@ func (manager *CertManager) NewCert(name string, serial int64, isServer bool, sa
 	}
 	certTmpl := x509.Certificate{
 		SerialNumber: big.NewInt(serial),
-		Subject: pkix.Name{
-			CommonName: name,
-		},
+		Subject: x509Name,
 		NotBefore:             time.Now(),
 		NotAfter:              time.Now().Add(manager.validity),
 		BasicConstraintsValid: true,

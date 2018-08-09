@@ -6,13 +6,19 @@ import (
 	"os/exec"
 	"strings"
 	"testing"
+	"crypto/x509/pkix"
 )
 
 func checkCertProperties(t *testing.T, cert *RSACertificate, serial, issuerCN, subjectCN, keyUsage, isCA, eku, sans string) {
-	certCheckCmd := exec.Command("openssl", "pki", "-in", cert.CertPath, "-text", "-noout")
+	certCheckCmd := exec.Command("openssl", "x509", "-in", cert.CertPath, "-text", "-noout")
 	certCheckBuf, err := certCheckCmd.Output()
 	if err != nil {
-		t.Error("Unexpected error when checking cert", err)
+		t.Error("Unexpected error when checking cert:", err)
+		return
+	}
+	if len(certCheckBuf) == 0 {
+		t.Error("Empty output when checking cert")
+		return
 	}
 
 	numExpected := 0
@@ -60,7 +66,7 @@ func checkCertProperties(t *testing.T, cert *RSACertificate, serial, issuerCN, s
 					numChecked++
 				}
 			}
-			if strings.Contains(line, "Subject: CN =") {
+			if strings.Contains(line, "Subject: ") {
 				if subjectCN != "" {
 					if !strings.Contains(line, subjectCN) {
 						t.Error("Certificate didn't have expected subject CN")
@@ -120,7 +126,7 @@ func checkCertProperties(t *testing.T, cert *RSACertificate, serial, issuerCN, s
 }
 
 func checkCertKeyMatch(t *testing.T, cert *RSACertificate) {
-	certCheckCmd := exec.Command("openssl", "pki", "-in", cert.CertPath, "-modulus", "-noout")
+	certCheckCmd := exec.Command("openssl", "x509", "-in", cert.CertPath, "-modulus", "-noout")
 	certCheckBuf, err := certCheckCmd.Output()
 	if err != nil {
 		t.Error("Unexpected error when checking cert", err)
@@ -183,12 +189,15 @@ func TestCASignedClientCert(t *testing.T) {
 	if err != nil {
 		t.Error("Unexpected error when generating CA cert", err)
 	}
-	cert, err := manager.NewCert("Testclient", 124, false, nil, caCert)
+	cert, err := manager.NewCert("Testclient", pkix.Name{
+		Organization: []string{"system:masters"},
+		CommonName: "Testclient",
+	},124, false, nil, caCert)
 	if err != nil {
 		t.Error("Unexpected error when generating client cert", err)
 	}
 
-	checkCertProperties(t, cert, "Serial Number: 124 (0x7c)", "Issuer: CN = Testcert", "Subject: CN = Testclient",
+	checkCertProperties(t, cert, "Serial Number: 124 (0x7c)", "Issuer: CN = Testcert", "Subject: O = system:masters, CN = Testclient",
 		"Digital Signature, Key Encipherment", "CA:FALSE", "TLS Web Client Authentication", "")
 	checkCertKeyMatch(t, cert)
 	checkCertKeyMatch(t, caCert)
@@ -204,7 +213,9 @@ func TestCASignedServerCert(t *testing.T) {
 	if err != nil {
 		t.Error("Unexpected error when generating CA cert", err)
 	}
-	cert, err := manager.NewCert("Testserver", 124, true, []string{
+	cert, err := manager.NewCert("Testserver", pkix.Name{
+		CommonName: "Testserver",
+	},124, true, []string{
 		"127.0.0.1",
 		"example.com",
 	}, caCert)
