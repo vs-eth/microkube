@@ -1,18 +1,19 @@
 package kube_apiserver
 
 import (
+	"encoding/base64"
+	"github.com/pkg/errors"
 	"github.com/uubk/microkube/pkg/pki"
 	"html/template"
-	"github.com/pkg/errors"
-	"os"
 	"io/ioutil"
-	"encoding/base64"
+	"os"
 )
 
 type ClientTemplateData struct {
-	Ca string
+	Ca         string
 	Clientcert string
-	Clientkey string
+	Clientkey  string
+	Address    string
 }
 
 func Base64EncodedPem(src string) (string, error) {
@@ -23,8 +24,10 @@ func Base64EncodedPem(src string) (string, error) {
 	return base64.StdEncoding.EncodeToString(content), nil
 }
 
-func CreateClientKubeconfig(ca, cert *pki.RSACertificate, path string) error {
-	data := ClientTemplateData{}
+func CreateClientKubeconfig(ca, cert *pki.RSACertificate, path, host string) error {
+	data := ClientTemplateData{
+		Address: host,
+	}
 	var err error
 	data.Ca, err = Base64EncodedPem(ca.CertPath)
 	if err != nil {
@@ -43,7 +46,7 @@ kind: Config
 clusters:
 - name: visprod
   cluster:
-    server: https://127.0.0.1:7443
+    server: https://{{ .Address }}:7443
     certificate-authority-data: {{ .Ca }} 
 users:
 - name: kubelet

@@ -1,17 +1,17 @@
 package kube_apiserver
 
 import (
+	"bufio"
+	"bytes"
 	"github.com/pkg/errors"
-	"os/exec"
-	"testing"
 	"github.com/uubk/microkube/pkg/handlers/etcd"
 	"github.com/uubk/microkube/pkg/helpers"
 	"io/ioutil"
+	"os/exec"
 	"path"
-		"time"
-	"bytes"
-	"bufio"
 	"strings"
+	"testing"
+	"time"
 )
 
 func TestAPIServerStartup(t *testing.T) {
@@ -53,7 +53,7 @@ func TestAPIServerKubeconfig(t *testing.T) {
 	}
 
 	kubeconfig := path.Join(tmpdir, "kubeconfig")
-	err = CreateClientKubeconfig(ca, client, kubeconfig)
+	err = CreateClientKubeconfig(ca, client, kubeconfig, "127.0.0.1")
 	if err != nil {
 		t.Error("kubeconfig creation failed", err)
 		return
@@ -65,20 +65,18 @@ func TestAPIServerKubeconfig(t *testing.T) {
 		return
 	}
 
-
 	var buf bytes.Buffer
 	outputHandler := func(output []byte) {
 		buf.Write(output)
 	}
 
-
-	time.Sleep(2*time.Second)
+	time.Sleep(2 * time.Second)
 
 	exitWaiter := make(chan bool)
 	kubeCtlExitHandler := func(success bool, exitError *exec.ExitError) {
 		exitWaiter <- success
 	}
-	handler := helpers.NewCmdHandler (bin, []string{
+	handler := helpers.NewCmdHandler(bin, []string{
 		"--kubeconfig",
 		kubeconfig,
 		"version",
@@ -96,8 +94,9 @@ func TestAPIServerKubeconfig(t *testing.T) {
 	checkScanner := bufio.NewScanner(strings.NewReader(string(buf.String())))
 	for checkScanner.Scan() {
 		line := checkScanner.Text()
-		if ! (strings.HasPrefix(line, "Client Version: version.Info{") || strings.HasPrefix(line, "Server Version: version.Info{")) {
-			t.Error("Unexpected version output: "+ line)
+		if !(strings.HasPrefix(line, "Client Version: version.Info{") ||
+			strings.HasPrefix(line, "Server Version: version.Info{")) {
+			t.Error("Unexpected version output: " + line)
 		}
 	}
 

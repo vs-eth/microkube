@@ -7,7 +7,7 @@ import (
 	"io/ioutil"
 	"os"
 	"path"
-	)
+)
 
 func GetBinary(name string) (string, error) {
 	wd, err := os.Getwd()

@@ -51,7 +51,7 @@ func (manager *CertManager) writeCertToFiles(name string, privateKey *rsa.Privat
 	keyOut.Close()
 	// Cert
 	certpath := path.Join(manager.workdir, name+".pem")
-	certOut, err := os.OpenFile(certpath, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0643)
+	certOut, err := os.OpenFile(certpath, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0644)
 	if err != nil {
 		return nil, errors.Wrap(err, "certificate file creation failed")
 	}
@@ -77,8 +77,8 @@ func (manager *CertManager) NewSelfSignedCert(name string, x509Name pkix.Name, s
 		return nil, errors.Wrap(err, "key creation failed")
 	}
 	certTmpl := x509.Certificate{
-		SerialNumber: big.NewInt(serial),
-		Subject: x509Name,
+		SerialNumber:          big.NewInt(serial),
+		Subject:               x509Name,
 		NotBefore:             time.Now(),
 		NotAfter:              time.Now().Add(manager.validity),
 		KeyUsage:              x509.KeyUsageCertSign,
@@ -100,8 +100,8 @@ func (manager *CertManager) NewCert(name string, x509Name pkix.Name, serial int6
 		return nil, errors.Wrap(err, "key creation failed")
 	}
 	certTmpl := x509.Certificate{
-		SerialNumber: big.NewInt(serial),
-		Subject: x509Name,
+		SerialNumber:          big.NewInt(serial),
+		Subject:               x509Name,
 		NotBefore:             time.Now(),
 		NotAfter:              time.Now().Add(manager.validity),
 		BasicConstraintsValid: true,

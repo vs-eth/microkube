@@ -1,7 +1,7 @@
 package kube_apiserver
 
 import (
-		"github.com/pkg/errors"
+	"github.com/pkg/errors"
 	"github.com/uubk/microkube/pkg/helpers"
 	"io"
 	"io/ioutil"
@@ -21,7 +21,7 @@ type KubeAPIServerHandler struct {
 	etcdClientKey  string
 	cmd            *helpers.CmdHandler
 	out            helpers.OutputHander
-	nodeRef string
+	nodeRef        string
 }
 
 func NewKubeAPIServerHandler(binary, kubeServerCert, kubeServerKey, kubeClientCert, kubeClientKey, kubeCACert,
@@ -38,9 +38,9 @@ func NewKubeAPIServerHandler(binary, kubeServerCert, kubeServerKey, kubeClientCe
 		etcdCACert:     etcdCACert,
 		cmd:            nil,
 		out:            out,
-		nodeRef: nodeRef,
+		nodeRef:        nodeRef,
 	}
-	obj.HandlerHelper = *helpers.NewHandlerHelper(exit, obj.healthCheckFun, "https://localhost:7443/healthz",
+	obj.HandlerHelper = *helpers.NewHandlerHelper(exit, obj.healthCheckFun, "https://"+ nodeRef + ":7443/healthz",
 		obj.stop, obj.Start)
 	return obj
 }

@@ -40,3 +40,7 @@
 [[constraint]]
   branch = "master"
   name = "github.com/mitchellh/go-homedir"
+
+[[constraint]]
+  name = "github.com/docker/docker"
+  version = "1.13.1"

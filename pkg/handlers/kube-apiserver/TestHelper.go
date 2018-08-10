@@ -1,25 +1,25 @@
 package kube_apiserver
 
 import (
+	"crypto/x509/pkix"
 	"github.com/pkg/errors"
 	"github.com/uubk/microkube/pkg/handlers/etcd"
 	"github.com/uubk/microkube/pkg/helpers"
 	"github.com/uubk/microkube/pkg/pki"
 	"io/ioutil"
-	"crypto/x509/pkix"
-		"time"
+	"time"
 )
 
 func CertHelper(pkidir, pkiname string) (*pki.RSACertificate, *pki.RSACertificate, *pki.RSACertificate, error) {
 	certmgr := pki.NewManager(pkidir)
 	ca, err := certmgr.NewSelfSignedCert(pkiname+"-CA", pkix.Name{
-		CommonName: pkiname+"-CA",
+		CommonName: pkiname + "-CA",
 	}, 1)
 	if err != nil {
 		return nil, nil, nil, errors.Wrap(err, "ca creation failed")
 	}
 	server, err := certmgr.NewCert(pkiname+"-Server", pkix.Name{
-		CommonName: pkiname+"-Server",
+		CommonName: pkiname + "-Server",
 	}, 2, true, []string{
 		"127.0.0.1",
 		"localhost",
@@ -28,7 +28,7 @@ func CertHelper(pkidir, pkiname string) (*pki.RSACertificate, *pki.RSACertificat
 		return nil, nil, nil, errors.Wrap(err, "server certificate creation failed")
 	}
 	client, err := certmgr.NewCert(pkiname+"-Client", pkix.Name{
-		CommonName: pkiname+"-Client",
+		CommonName:   pkiname + "-Client",
 		Organization: []string{"system:masters"}, // THIS FIXES RBAC PERMISSIONS!
 	}, 3, false, nil, ca)
 	if err != nil {
@@ -38,8 +38,8 @@ func CertHelper(pkidir, pkiname string) (*pki.RSACertificate, *pki.RSACertificat
 	return ca, server, client, nil
 }
 
-
-func StartKubeAPIServerForTest(exitHandler helpers.ExitHandler) (*KubeAPIServerHandler, *etcd.EtcdHandler, *pki.RSACertificate, *pki.RSACertificate, error) {
+func StartKubeAPIServerForTest(exitHandler helpers.ExitHandler) (*KubeAPIServerHandler, *etcd.EtcdHandler,
+	*pki.RSACertificate, *pki.RSACertificate, error) {
 	etcdHandler, etcdCA, etcdClientCert, err := etcd.StartETCDForTest(exitHandler)
 	if err != nil {
 		return nil, nil, nil, nil, errors.Wrap(err, "ETCD startup failed")
@@ -66,7 +66,8 @@ func StartKubeAPIServerForTest(exitHandler helpers.ExitHandler) (*KubeAPIServerH
 	}
 
 	uut := NewKubeAPIServerHandler(bin, kubeServer.CertPath, kubeServer.KeyPath, kubeClient.CertPath, kubeClient.KeyPath,
-		kubeCA.CertPath, etcdClientCert.CertPath, etcdClientCert.KeyPath, etcdCA.CertPath, outputHandler, exitHandler, "0.0.0.0")
+		kubeCA.CertPath, etcdClientCert.CertPath, etcdClientCert.KeyPath, etcdCA.CertPath, outputHandler, exitHandler,
+		"0.0.0.0")
 	err = uut.Start()
 	if err != nil {
 		return nil, nil, nil, nil, errors.Wrap(err, "kube apiserver didn't launch")
@@ -78,7 +79,7 @@ func StartKubeAPIServerForTest(exitHandler helpers.ExitHandler) (*KubeAPIServerH
 	}
 
 	for i := 0; i < 10 && !msg.IsHealthy; i++ {
-		time.Sleep(2* time.Second)
+		time.Sleep(2 * time.Second)
 		uut.EnableHealthChecks(kubeCA, kubeClient, msgChan, false)
 		msg = <-msgChan
 	}

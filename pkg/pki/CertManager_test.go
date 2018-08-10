@@ -3,13 +3,14 @@ package pki
 import "os"
 import (
 	"bufio"
+	"crypto/x509/pkix"
 	"os/exec"
 	"strings"
 	"testing"
-	"crypto/x509/pkix"
 )
 
-func checkCertProperties(t *testing.T, cert *RSACertificate, serial, issuerCN, subjectCN, keyUsage, isCA, eku, sans string) {
+func checkCertProperties(t *testing.T, cert *RSACertificate, serial, issuerCN, subjectCN, keyUsage, isCA, eku,
+	sans string) {
 	certCheckCmd := exec.Command("openssl", "x509", "-in", cert.CertPath, "-text", "-noout")
 	certCheckBuf, err := certCheckCmd.Output()
 	if err != nil {
@@ -154,23 +155,28 @@ func TestSelfSignedCertProperties(t *testing.T) {
 	// Conserve entropy during unit tests (NEVER DO THIS IN DEV OR PROD)
 	// and generate extremely short certificates
 	manager.keysize = 768
-	cert, err := manager.NewSelfSignedCert("Testcert", 123)
+	cert, err := manager.NewSelfSignedCert("Testcert", pkix.Name{
+		CommonName: "Testcert",
+	}, 123)
 	if err != nil {
 		t.Error("Unexpected error when generating cert", err)
 	}
 
-	checkCertProperties(t, cert, "Serial Number: 123 (0x7b)", "Issuer: CN = Testcert", "Subject: CN = Testcert",
-		"Certificate Sign", "CA:TRUE", "", "")
+	checkCertProperties(t, cert, "Serial Number: 123 (0x7b)", "Issuer: CN = Testcert",
+		"Subject: CN = Testcert", "Certificate Sign", "CA:TRUE", "", "")
 }
 
-// This test creates a simple self-signed certificate and checks whether it's public and private key are readable and match each other
+// This test creates a simple self-signed certificate and checks whether it's public and private key are readable and
+// match each other
 func TestSelfSignedCertMatch(t *testing.T) {
 	tempDir := os.TempDir()
 	manager := NewManager(tempDir)
 	// Conserve entropy during unit tests (NEVER DO THIS IN DEV OR PROD)
 	// and generate extremely short certificates
 	manager.keysize = 768
-	cert, err := manager.NewSelfSignedCert("Testcert", 123)
+	cert, err := manager.NewSelfSignedCert("Testcert", pkix.Name{
+		CommonName: "Testcert",
+	}, 123)
 	if err != nil {
 		t.Error("Unexpected error when generating cert", err)
 	}
@@ -185,20 +191,23 @@ func TestCASignedClientCert(t *testing.T) {
 	// Conserve entropy during unit tests (NEVER DO THIS IN DEV OR PROD)
 	// and generate extremely short certificates
 	manager.keysize = 768
-	caCert, err := manager.NewSelfSignedCert("Testcert", 123)
+	caCert, err := manager.NewSelfSignedCert("Testcert", pkix.Name{
+		CommonName: "Testcert",
+	}, 123)
 	if err != nil {
 		t.Error("Unexpected error when generating CA cert", err)
 	}
 	cert, err := manager.NewCert("Testclient", pkix.Name{
 		Organization: []string{"system:masters"},
-		CommonName: "Testclient",
-	},124, false, nil, caCert)
+		CommonName:   "Testclient",
+	}, 124, false, nil, caCert)
 	if err != nil {
 		t.Error("Unexpected error when generating client cert", err)
 	}
 
-	checkCertProperties(t, cert, "Serial Number: 124 (0x7c)", "Issuer: CN = Testcert", "Subject: O = system:masters, CN = Testclient",
-		"Digital Signature, Key Encipherment", "CA:FALSE", "TLS Web Client Authentication", "")
+	checkCertProperties(t, cert, "Serial Number: 124 (0x7c)", "Issuer: CN = Testcert",
+		"Subject: O = system:masters, CN = Testclient", "Digital Signature, Key Encipherment",
+		"CA:FALSE", "TLS Web Client Authentication", "")
 	checkCertKeyMatch(t, cert)
 	checkCertKeyMatch(t, caCert)
 }
@@ -209,13 +218,15 @@ func TestCASignedServerCert(t *testing.T) {
 	// Conserve entropy during unit tests (NEVER DO THIS IN DEV OR PROD)
 	// and generate extremely short certificates
 	manager.keysize = 768
-	caCert, err := manager.NewSelfSignedCert("Testcert", 123)
+	caCert, err := manager.NewSelfSignedCert("Testcert", pkix.Name{
+		CommonName: "Testcert",
+	}, 123)
 	if err != nil {
 		t.Error("Unexpected error when generating CA cert", err)
 	}
 	cert, err := manager.NewCert("Testserver", pkix.Name{
 		CommonName: "Testserver",
-	},124, true, []string{
+	}, 124, true, []string{
 		"127.0.0.1",
 		"example.com",
 	}, caCert)
@@ -223,8 +234,9 @@ func TestCASignedServerCert(t *testing.T) {
 		t.Error("Unexpected error when generating client cert", err)
 	}
 
-	checkCertProperties(t, cert, "Serial Number: 124 (0x7c)", "Issuer: CN = Testcert", "Subject: CN = Testserver",
-		"Digital Signature, Key Encipherment", "CA:FALSE", "TLS Web Server Authentication", "DNS:example.com, IP Address:127.0.0.1")
+	checkCertProperties(t, cert, "Serial Number: 124 (0x7c)", "Issuer: CN = Testcert",
+		"Subject: CN = Testserver", "Digital Signature, Key Encipherment", "CA:FALSE",
+		"TLS Web Server Authentication", "DNS:example.com, IP Address:127.0.0.1")
 	checkCertKeyMatch(t, cert)
 	checkCertKeyMatch(t, caCert)
 }
