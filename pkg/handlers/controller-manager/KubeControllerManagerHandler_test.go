@@ -1,9 +1,9 @@
 package controller_manager
 
 import (
-	"testing"
-	"os/exec"
 	"github.com/uubk/microkube/pkg/helpers"
+	"os/exec"
+	"testing"
 )
 
 func TestControllerManagerStartup(t *testing.T) {

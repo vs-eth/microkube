@@ -3,12 +3,12 @@ package kube_apiserver
 import (
 	"github.com/pkg/errors"
 	"github.com/uubk/microkube/pkg/handlers"
+	"github.com/uubk/microkube/pkg/handlers/etcd"
 	"github.com/uubk/microkube/pkg/helpers"
 	"github.com/uubk/microkube/pkg/pki"
 	"io"
 	"io/ioutil"
 	"strings"
-	"github.com/uubk/microkube/pkg/handlers/etcd"
 )
 
 type KubeAPIServerHandler struct {
@@ -124,7 +124,7 @@ func (handler *KubeAPIServerHandler) healthCheckFun(responseBin *io.ReadCloser) 
 }
 
 // This function is supposed to be only used for testing
-func KubeApiServerConstructor (ca, server, client *pki.RSACertificate, binary, workdir string, outputHandler handlers.OutputHander, exitHandler handlers.ExitHandler) ([]handlers.ServiceHandler, error) {
+func KubeApiServerConstructor(ca, server, client *pki.RSACertificate, binary, workdir string, outputHandler handlers.OutputHander, exitHandler handlers.ExitHandler) ([]handlers.ServiceHandler, error) {
 	handlerList, etcdCA, etcdClient, _, err := helpers.StartHandlerForTest("etcd", etcd.EtcdHandlerConstructor, exitHandler, false, 1)
 	if err != nil {
 		return handlerList, errors.Wrap(err, "etcd startup prereq failed")

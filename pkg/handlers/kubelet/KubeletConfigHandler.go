@@ -2,9 +2,9 @@ package kubelet
 
 import (
 	"github.com/pkg/errors"
+	"github.com/uubk/microkube/pkg/pki"
 	"html/template"
 	"os"
-	"github.com/uubk/microkube/pkg/pki"
 )
 
 type KubeletConfigData struct {

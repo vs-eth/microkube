@@ -1,15 +1,15 @@
 package controller_manager
 
 import (
+	"github.com/pkg/errors"
+	"github.com/uubk/microkube/pkg/handlers"
+	"github.com/uubk/microkube/pkg/handlers/kube-apiserver"
 	"github.com/uubk/microkube/pkg/helpers"
+	"github.com/uubk/microkube/pkg/pki"
 	"io"
 	"io/ioutil"
-	"strings"
-	"github.com/uubk/microkube/pkg/handlers"
-	"github.com/uubk/microkube/pkg/pki"
-	"github.com/pkg/errors"
-	"github.com/uubk/microkube/pkg/handlers/kube-apiserver"
 	"path"
+	"strings"
 )
 
 type ControllerManagerHandler struct {
@@ -17,26 +17,26 @@ type ControllerManagerHandler struct {
 	cmd *helpers.CmdHandler
 
 	// Path to kube-controller-manager binary
-	binary            string
+	binary string
 	// Path to kube server certificate
-	kubeServerCert    string
+	kubeServerCert string
 	// Path to kube server certificate's key
-	kubeServerKey     string
+	kubeServerKey string
 	// Path to kube cluster CA certificate
 	kubeClusterCACert string
 	// Path to kube cluster CA certificate key
-	kubeClusterCAKey  string
+	kubeClusterCAKey string
 	// IP range for pods (CIDR)
-	podRange    string
+	podRange string
 	// Path to kubeconfig
-	kubeconfig  string
+	kubeconfig string
 	// Address to bind on
 	bindAddress string
 	// Output handler
 	out handlers.OutputHander
 }
 
-func NewControllerManagerHandler(binary, kubeconfig, listenAddress string, server, client, ca, clusterCA *pki.RSACertificate, podRange string, out handlers.OutputHander, exit handlers.ExitHandler) (*ControllerManagerHandler) {
+func NewControllerManagerHandler(binary, kubeconfig, listenAddress string, server, client, ca, clusterCA *pki.RSACertificate, podRange string, out handlers.OutputHander, exit handlers.ExitHandler) *ControllerManagerHandler {
 	obj := &ControllerManagerHandler{
 		binary:            binary,
 		kubeServerCert:    server.CertPath,
@@ -99,7 +99,7 @@ func (handler *ControllerManagerHandler) healthCheckFun(responseBin *io.ReadClos
 }
 
 // This function is supposed to be only used for testing
-func KubeControllerManagerConstructor (ca, server, client *pki.RSACertificate, binary, workdir string, outputHandler handlers.OutputHander, exitHandler handlers.ExitHandler) ([]handlers.ServiceHandler, error) {
+func KubeControllerManagerConstructor(ca, server, client *pki.RSACertificate, binary, workdir string, outputHandler handlers.OutputHander, exitHandler handlers.ExitHandler) ([]handlers.ServiceHandler, error) {
 	// Start apiserver (and etcd)
 	handlerList, kubeCA, kubeClient, kubeServer, err := helpers.StartHandlerForTest("kube-apiserver", kube_apiserver.KubeApiServerConstructor, exitHandler, false, 30)
 	if err != nil {

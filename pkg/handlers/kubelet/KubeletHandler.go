@@ -1,15 +1,15 @@
 package kubelet
 
 import (
+	"errors"
+	"github.com/uubk/microkube/pkg/handlers"
 	"github.com/uubk/microkube/pkg/helpers"
+	"github.com/uubk/microkube/pkg/pki"
 	"io"
 	"io/ioutil"
 	"os"
 	"path"
-	"github.com/uubk/microkube/pkg/handlers"
 	"strings"
-	"errors"
-	"github.com/uubk/microkube/pkg/pki"
 )
 
 // Handle a kubelet instance, that is the thing that actually schedules nodes
@@ -18,23 +18,23 @@ type KubeletHandler struct {
 	cmd *helpers.CmdHandler
 
 	// Path to kubelet binary
-	binary         string
+	binary string
 	// Path to kubernetes server certificate
 	kubeServerCert string
 	// Path to kubernetes server certificate's key
-	kubeServerKey  string
+	kubeServerKey string
 	// Path to kubernetes CA
-	kubeCACert     string
+	kubeCACert string
 
 	// Where to bind?
 	listenAddress string
 	// Root dir of kubelet state
-	rootDir       string
+	rootDir string
 	// Path to kubeconfig
-	kubeconfig    string
+	kubeconfig string
 	// Path to kubelet config (!= kubeconfig, replacement for commandline flags)
-	config        string
-    // Output handler
+	config string
+	// Output handler
 	out handlers.OutputHander
 }
 

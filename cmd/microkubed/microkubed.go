@@ -2,19 +2,18 @@ package main
 
 import (
 	"context"
-	"crypto/x509/pkix"
 	"flag"
 	"github.com/docker/docker/api/types"
 	"github.com/docker/docker/client"
 	"github.com/mitchellh/go-homedir"
-	"github.com/pkg/errors"
 	log "github.com/sirupsen/logrus"
+	"github.com/uubk/microkube/internal/cmd"
+	"github.com/uubk/microkube/pkg/handlers"
 	"github.com/uubk/microkube/pkg/handlers/controller-manager"
 	"github.com/uubk/microkube/pkg/handlers/etcd"
 	"github.com/uubk/microkube/pkg/handlers/kube-apiserver"
 	"github.com/uubk/microkube/pkg/handlers/kubelet"
 	"github.com/uubk/microkube/pkg/helpers"
-	"github.com/uubk/microkube/pkg/pki"
 	"net"
 	"os"
 	"os/exec"
@@ -22,107 +21,7 @@ import (
 	"time"
 )
 
-func ensureDir(root, sub string) {
-	dir := path.Join(root, sub)
-
-	// Errors in mkdir are ignored
-	err := os.Mkdir(dir, 0770)
-	if err == nil {
-		log.WithField("dir", dir).Debug("Directory created")
-	}
-
-	info, err := os.Stat(dir)
-	if err != nil {
-		log.WithError(err).Fatal("Couldn't stat microkube root directory")
-		os.Exit(-1)
-	}
-	if !info.IsDir() {
-		log.WithError(err).Fatal("Microkube root directory is not a directory")
-		os.Exit(-1)
-	}
-}
-
-func ensureCerts(root, name string, isKubeCA bool, ip string) (*pki.RSACertificate, *pki.RSACertificate, *pki.RSACertificate) {
-	cafile := path.Join(root, "ca.pem")
-	_, err := os.Stat(cafile)
-	if err != nil {
-		// File doesn't exist
-		certmgr := pki.NewManager(root)
-		ca, err := certmgr.NewSelfSignedCACert("ca", pkix.Name{
-			CommonName: name + " CA",
-		}, 1)
-		if err != nil {
-			log.WithError(err).WithField("root", root).Fatal("Couldn't create CA")
-			os.Exit(-1)
-		}
-
-		server, err := certmgr.NewCert("server", pkix.Name{
-			CommonName: name + " Server",
-		}, 2, true, []string{
-			"127.0.0.1",
-			"localhost",
-			ip,
-		}, ca)
-		if err != nil {
-			log.WithError(err).WithField("root", root).Fatal("Couldn't create server cert")
-			os.Exit(-1)
-		}
-
-		clientname := pkix.Name{
-			CommonName: name + " Client",
-		}
-		if isKubeCA {
-			clientname.Organization = []string{"system:masters"}
-		}
-		client, err := certmgr.NewCert("client", clientname, 3, false, nil, ca)
-		if err != nil {
-			log.WithError(err).WithField("root", root).Fatal("Couldn't create client cert")
-			os.Exit(-1)
-		}
-
-		return ca, server, client
-	}
-
-	// Certs already exist
-	return &pki.RSACertificate{
-			KeyPath:  "",
-			CertPath: path.Join(root, "ca.pem"),
-		}, &pki.RSACertificate{
-			KeyPath:  path.Join(root, "server.key"),
-			CertPath: path.Join(root, "server.pem"),
-		}, &pki.RSACertificate{
-			KeyPath:  path.Join(root, "client.key"),
-			CertPath: path.Join(root, "client.pem"),
-		}
-}
-
-func GetBinary(name string) (string, error) {
-	wd, err := os.Getwd()
-	if err != nil {
-		return "", errors.Wrap(err, "couldn't read cwd")
-	}
-	wd = path.Join(wd, "third_party", name)
-	return wd, nil
-}
-
-func main() {
-	log.SetOutput(os.Stdout)
-	log.SetLevel(log.InfoLevel)
-
-	verbose := flag.Bool("verbose", true, "Enabel verbose output")
-	root := flag.String("root", "~/.mukube", "Microkube root directory")
-	flag.Parse()
-
-	if *verbose {
-		log.SetLevel(log.DebugLevel)
-	}
-
-	dir, err := homedir.Expand(*root)
-	if err != nil {
-		log.WithError(err).WithField("root", *root).Fatal("Couldn't expand root directory")
-		os.Exit(-1)
-	}
-
+func getDockerIPRanges() (myIP, podRangeStr, serviceRangeStr string) {
 	// Figure out if Docker is running and if it's network is something that we can use
 	docker, err := client.NewEnvClient()
 	if err != nil {
@@ -185,52 +84,75 @@ func main() {
 		"svcs": serviceRange.String(),
 	}).Info("Network ranges calculated")
 
-	// Handle certs
-	ensureDir(dir, "")
-	ensureDir(dir, "kube")
-	ensureDir(dir, "etcdtls")
-	ensureDir(dir, "kubetls")
-	ensureDir(dir, "etcddata")
-	etcdCA, etcdServer, etcdClient := ensureCerts(path.Join(dir, "etcdtls"), "Microkube ETCD", false, dockerNetworkIP)
-	kubeCA, kubeServer, kubeClient := ensureCerts(path.Join(dir, "kubetls"), "Microkube Kubernetes", true, dockerNetworkIP)
-	kubeCAPath := path.Join(dir, "kubetls")
-	cafile := path.Join(kubeCAPath, "ca.pem")
-	_, err = os.Stat(cafile)
-	var kubeClusterCA *pki.RSACertificate
-	if err != nil {
-		// File doesn't exist
-		certmgr := pki.NewManager(kubeCAPath)
-		kubeClusterCA, err = certmgr.NewSelfSignedCACert("ca", pkix.Name{
-			CommonName: "Microkube Cluster CA",
-		}, 1)
-		if err != nil {
-			log.WithError(err).WithField("root", root).Fatal("Couldn't create CA")
-			os.Exit(-1)
-		}
-	} else {
-		kubeClusterCA = &pki.RSACertificate{
-			CertPath: path.Join(kubeCAPath, "ca.pem"),
-			KeyPath:  path.Join(kubeCAPath, "ca.key"),
-		}
+	return podRange.IP.String(), podRange.String(), serviceRange.String()
+}
+
+func main() {
+	log.SetOutput(os.Stdout)
+	log.SetLevel(log.InfoLevel)
+
+	verbose := flag.Bool("verbose", true, "Enabel verbose output")
+	root := flag.String("root", "~/.mukube", "Microkube root directory")
+	flag.Parse()
+
+	if *verbose {
+		log.SetLevel(log.DebugLevel)
 	}
 
+	dir, err := homedir.Expand(*root)
+	if err != nil {
+		log.WithError(err).WithField("root", *root).Fatal("Couldn't expand root directory")
+		os.Exit(-1)
+	}
+	dockerNetworkIP, podRange, serviceRange := getDockerIPRanges()
+
+	// Handle certs
+	cmd.EnsureDir(dir, "", 0770)
+	cmd.EnsureDir(dir, "kube", 0770)
+	cmd.EnsureDir(dir, "etcdtls", 0770)
+	cmd.EnsureDir(dir, "kubetls", 0770)
+	cmd.EnsureDir(dir, "kubectls", 0770)
+	cmd.EnsureDir(dir, "kubestls", 0770)
+	cmd.EnsureDir(dir, "etcddata", 0770)
+	etcdCA, etcdServer, etcdClient, err := cmd.EnsureFullPKI(path.Join(dir, "etcdtls"), "Microkube ETCD", false, []string{dockerNetworkIP})
+	if err != nil {
+		log.WithError(err).Fatal("Couldn't create etcd PKI")
+		os.Exit(-1)
+	}
+	kubeCA, kubeServer, kubeClient, err := cmd.EnsureFullPKI(path.Join(dir, "kubetls"), "Microkube Kubernetes", true, []string{dockerNetworkIP})
+	if err != nil {
+		log.WithError(err).Fatal("Couldn't create kubernetes PKI")
+		os.Exit(-1)
+	}
+	kubeClusterCA, err := cmd.EnsureCA(path.Join(dir, "kubectls"), "Microkube Cluster CA")
+	if err != nil {
+		log.WithError(err).Fatal("Couldn't create kubernetes cluster CA")
+		os.Exit(-1)
+	}
+	kubeSvcSignCert, err := cmd.EnsureSigningCert(path.Join(dir, "kubestls"), "Microkube Cluster SVC Signcert")
+	if err != nil {
+		log.WithError(err).Fatal("Couldn't create kubernetes service secret signing certificate")
+		os.Exit(-1)
+	}
+	print (kubeSvcSignCert.CertPath)
+
 	// Find binaries
-	etcdBin, err := GetBinary("etcd")
+	etcdBin, err := helpers.FindBinary("etcd", dir)
 	if err != nil {
 		log.WithError(err).Fatal("Couldn't find etcd binary")
 		os.Exit(-1)
 	}
-	kubeApiBin, err := GetBinary("kube-apiserver")
+	kubeApiBin, err := helpers.FindBinary("kube-apiserver", dir)
 	if err != nil {
 		log.WithError(err).Fatal("Couldn't find kube apiserver binary")
 		os.Exit(-1)
 	}
-	kubeletBin, err := GetBinary("kubelet")
+	kubeletBin, err := helpers.FindBinary("kubelet", dir)
 	if err != nil {
 		log.WithError(err).Fatal("Couldn't find kubelet binary")
 		os.Exit(-1)
 	}
-	ctrlMgrBin, err := GetBinary("kube-controller-manager")
+	ctrlMgrBin, err := helpers.FindBinary("kube-controller-manager", dir)
 	if err != nil {
 		log.WithError(err).Fatal("Couldn't find kube-controller-manager binary")
 		os.Exit(-1)
@@ -242,7 +164,7 @@ func main() {
 		log.WithField("app", "etcd").Info(string(output))
 	}
 	etcdChan := make(chan bool, 2)
-	etcdHealthChan := make(chan helpers.HealthMessage, 2)
+	etcdHealthChan := make(chan handlers.HealthMessage, 2)
 	etcdExitHandler := func(success bool, exitError *exec.ExitError) {
 		log.WithFields(log.Fields{
 			"success": success,
@@ -250,19 +172,21 @@ func main() {
 		}).WithError(exitError).Error("etcd stopped!")
 		etcdChan <- success
 	}
-	etcdHandler := etcd.NewEtcdHandler(path.Join(dir, "etcddata"), etcdBin, etcdServer.CertPath, etcdServer.KeyPath,
-		etcdCA.CertPath, etcdOutputHandler, 3, etcdExitHandler)
+	etcdHandler := etcd.NewEtcdHandler(path.Join(dir, "etcddata"), etcdBin, etcdServer, etcdClient, etcdCA,
+		etcdOutputHandler, etcdExitHandler)
 	err = etcdHandler.Start()
 	if err != nil {
 		log.WithError(err).Fatal("Couldn't start etcd")
 		os.Exit(-1)
 	}
 	defer etcdHandler.Stop()
-	etcdHandler.EnableHealthChecks(etcdCA, etcdClient, etcdHealthChan, false)
+	etcdHandler.EnableHealthChecks(etcdHealthChan, false)
 	msg := <-etcdHealthChan
 	if !msg.IsHealthy {
 		log.WithError(msg.Error).Fatal("ETCD didn't become healthy in time!")
 		return
+	} else {
+		log.Debug("ETCD ready")
 	}
 
 	// Start Kube APIServer
@@ -271,7 +195,7 @@ func main() {
 		log.WithField("app", "kube-api").Info(string(output))
 	}
 	kubeAPIChan := make(chan bool, 2)
-	kubeAPIHealthChan := make(chan helpers.HealthMessage, 2)
+	kubeAPIHealthChan := make(chan handlers.HealthMessage, 2)
 	kubeAPIExitHandler := func(success bool, exitError *exec.ExitError) {
 		log.WithFields(log.Fields{
 			"success": success,
@@ -279,9 +203,8 @@ func main() {
 		}).WithError(exitError).Error("kube-apiserver stopped!")
 		kubeAPIChan <- success
 	}
-	kubeAPIHandler := kube_apiserver.NewKubeAPIServerHandler(kubeApiBin, kubeServer.CertPath, kubeServer.KeyPath,
-		kubeClient.CertPath, kubeClient.KeyPath, kubeCA.CertPath, etcdClient.CertPath, etcdClient.KeyPath,
-		etcdCA.CertPath, kubeAPIOutputHandler, kubeAPIExitHandler, dockerNetworkIP, serviceRange.String())
+	kubeAPIHandler := kube_apiserver.NewKubeAPIServerHandler(kubeApiBin, kubeServer, kubeClient, kubeCA, etcdClient,
+		etcdCA, kubeAPIOutputHandler, kubeAPIExitHandler, dockerNetworkIP, serviceRange)
 	err = kubeAPIHandler.Start()
 	if err != nil {
 		log.WithError(err).Fatal("Couldn't start kube apiserver")
@@ -289,12 +212,12 @@ func main() {
 	}
 	defer kubeAPIHandler.Stop()
 
-	msg = helpers.HealthMessage{
+	msg = handlers.HealthMessage{
 		IsHealthy: false,
 	}
 	for retries := 0; retries < 8 && !msg.IsHealthy; retries++ {
 		time.Sleep(1 * time.Second)
-		kubeAPIHandler.EnableHealthChecks(kubeCA, kubeClient, kubeAPIHealthChan, false)
+		kubeAPIHandler.EnableHealthChecks(kubeAPIHealthChan, false)
 		msg = <-kubeAPIHealthChan
 		log.WithFields(log.Fields{
 			"app":    "kube-api",
@@ -325,7 +248,7 @@ func main() {
 		log.WithField("app", "kube-controller-manager").Info(string(output))
 	}
 	kubeCtrlMgrChan := make(chan bool, 2)
-	kubeCtrlMgrHealthChan := make(chan helpers.HealthMessage, 2)
+	kubeCtrlMgrHealthChan := make(chan handlers.HealthMessage, 2)
 	kubeCtrlMgrExitHandler := func(success bool, exitError *exec.ExitError) {
 		log.WithFields(log.Fields{
 			"success": success,
@@ -333,8 +256,8 @@ func main() {
 		}).WithError(exitError).Error("kubelet stopped!")
 		kubeCtrlMgrChan <- success
 	}
-	kubeCtrlMgrHandler, err := controller_manager.NewControllerManagerHandler(ctrlMgrBin, path.Join(dir, "kube/", "kubeconfig"),
-		dockerNetworkIP, kubeServer.CertPath, kubeServer.KeyPath, kubeClusterCA.CertPath, kubeClusterCA.KeyPath, podRange.String(), kubeCtrlMgrOutputHandler, kubeCtrlMgrExitHandler)
+	kubeCtrlMgrHandler := controller_manager.NewControllerManagerHandler(ctrlMgrBin, path.Join(dir, "kube/", "kubeconfig"),
+		dockerNetworkIP, kubeServer, kubeClient, kubeCA, kubeClusterCA, podRange, kubeCtrlMgrOutputHandler, kubeCtrlMgrExitHandler)
 	if err != nil {
 		log.WithError(err).Fatal("Couldn't create controller-manager handler")
 		os.Exit(-1)
@@ -346,12 +269,12 @@ func main() {
 	}
 	defer kubeCtrlMgrHandler.Stop()
 
-	msg = helpers.HealthMessage{
+	msg = handlers.HealthMessage{
 		IsHealthy: false,
 	}
 	for retries := 0; retries < 8 && !msg.IsHealthy; retries++ {
 		time.Sleep(1 * time.Second)
-		kubeCtrlMgrHandler.EnableHealthChecks(kubeCA, kubeClient, kubeCtrlMgrHealthChan, false)
+		kubeCtrlMgrHandler.EnableHealthChecks(kubeCtrlMgrHealthChan, false)
 		msg = <-kubeCtrlMgrHealthChan
 		log.WithFields(log.Fields{
 			"app":    "controller-manager",
@@ -369,7 +292,7 @@ func main() {
 		log.WithField("app", "kube-api").Info(string(output))
 	}
 	kubeletChan := make(chan bool, 2)
-	kubeletHealthChan := make(chan helpers.HealthMessage, 2)
+	kubeletHealthChan := make(chan handlers.HealthMessage, 2)
 	kubeletExitHandler := func(success bool, exitError *exec.ExitError) {
 		log.WithFields(log.Fields{
 			"success": success,
@@ -378,7 +301,7 @@ func main() {
 		kubeletChan <- success
 	}
 	kubeletHandler, err := kubelet.NewKubeletHandler(kubeletBin, path.Join(dir, "kube"), path.Join(dir, "kube/", "kubeconfig"),
-		dockerNetworkIP, kubeServer.CertPath, kubeServer.KeyPath, kubeCA.CertPath, podRange.String(), kubeletOutputHandler, kubeletExitHandler)
+		dockerNetworkIP, kubeServer, kubeClient, kubeCA, kubeletOutputHandler, kubeletExitHandler)
 	if err != nil {
 		log.WithError(err).Fatal("Couldn't create kubelet handler")
 		os.Exit(-1)
@@ -390,12 +313,12 @@ func main() {
 	}
 	defer kubeletHandler.Stop()
 
-	msg = helpers.HealthMessage{
+	msg = handlers.HealthMessage{
 		IsHealthy: false,
 	}
 	for retries := 0; retries < 8 && !msg.IsHealthy; retries++ {
 		time.Sleep(1 * time.Second)
-		kubeletHandler.EnableHealthChecks(kubeCA, kubeClient, kubeletHealthChan, false)
+		kubeletHandler.EnableHealthChecks(kubeletHealthChan, false)
 		msg = <-kubeletHealthChan
 		log.WithFields(log.Fields{
 			"app":    "kubelet",
@@ -408,9 +331,10 @@ func main() {
 	}
 
 	// Start periodic health checks
-	etcdHandler.EnableHealthChecks(etcdCA, etcdClient, etcdHealthChan, true)
-	kubeAPIHandler.EnableHealthChecks(kubeCA, kubeClient, kubeAPIHealthChan, true)
-	kubeletHandler.EnableHealthChecks(kubeCA, kubeClient, kubeletHealthChan, true)
+	etcdHandler.EnableHealthChecks(etcdHealthChan, true)
+	kubeAPIHandler.EnableHealthChecks(kubeAPIHealthChan, true)
+	kubeletHandler.EnableHealthChecks(kubeletHealthChan, true)
+	kubeCtrlMgrHandler.EnableHealthChecks(kubeCtrlMgrHealthChan, true)
 
 	// Main loop
 	for {
@@ -423,6 +347,9 @@ func main() {
 			return
 		case <-kubeletChan:
 			log.Fatal("Kubelet exitted, aborting!")
+			return
+		case <-kubeCtrlMgrChan:
+			log.Fatal("Controller/manager exitted, aborting!")
 			return
 		case msg = <-etcdHealthChan:
 			if !msg.IsHealthy {
@@ -441,6 +368,12 @@ func main() {
 				log.WithField("app", "kubelet").Warn("unhealthy!")
 			} else {
 				log.WithField("app", "kubelet").Debug("healthy")
+			}
+		case msg = <-kubeCtrlMgrHealthChan:
+			if !msg.IsHealthy {
+				log.WithField("app", "controller-manager").Warn("unhealthy!")
+			} else {
+				log.WithField("app", "controller-manager").Debug("healthy")
 			}
 		}
 	}

@@ -44,13 +44,13 @@ func StartHandlerForTest(name string, constructor UUTConstrutor, exitHandler han
 	}
 
 	healthMessage := make(chan handlers.HealthMessage, 1)
-	msg := handlers.HealthMessage {
+	msg := handlers.HealthMessage{
 		IsHealthy: false,
 	}
 	for i := 0; i < healthCheckTries && (!msg.IsHealthy); i++ {
 		handler.EnableHealthChecks(healthMessage, false)
 		msg = <-healthMessage
-		time.Sleep(1*time.Second)
+		time.Sleep(1 * time.Second)
 	}
 	if !msg.IsHealthy {
 		return nil, nil, nil, nil, errors.Wrap(msg.Error, name+" unhealthy: ")

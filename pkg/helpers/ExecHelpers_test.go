@@ -1,12 +1,12 @@
 package helpers
 
 import (
-	"testing"
 	"os"
+	"testing"
 )
 
 func TestAllBinariesPresent(t *testing.T) {
-	binaries := []string {
+	binaries := []string{
 		"kubelet",
 		"kubectl",
 		"etcd",
@@ -19,14 +19,14 @@ func TestAllBinariesPresent(t *testing.T) {
 	for _, item := range binaries {
 		path, err := FindBinary(item, "")
 		if err != nil {
-			t.Fatal("Didn't find "+ item)
+			t.Fatal("Didn't find " + item)
 		}
 		info, err := os.Stat(path)
 		if err != nil {
-			t.Fatal("Coudln't stat "+ item)
+			t.Fatal("Coudln't stat " + item)
 		}
 		if !info.Mode().IsRegular() {
-			t.Fatal(item+ "isn't a regular file")
+			t.Fatal(item + "isn't a regular file")
 		}
 	}
 }
