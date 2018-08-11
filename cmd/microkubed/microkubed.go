@@ -134,7 +134,6 @@ func main() {
 		log.WithError(err).Fatal("Couldn't create kubernetes service secret signing certificate")
 		os.Exit(-1)
 	}
-	print (kubeSvcSignCert.CertPath)
 
 	// Find binaries
 	etcdBin, err := helpers.FindBinary("etcd", dir)
@@ -257,7 +256,7 @@ func main() {
 		kubeCtrlMgrChan <- success
 	}
 	kubeCtrlMgrHandler := controller_manager.NewControllerManagerHandler(ctrlMgrBin, path.Join(dir, "kube/", "kubeconfig"),
-		dockerNetworkIP, kubeServer, kubeClient, kubeCA, kubeClusterCA, podRange, kubeCtrlMgrOutputHandler, kubeCtrlMgrExitHandler)
+		dockerNetworkIP, kubeServer, kubeClient, kubeCA, kubeClusterCA, kubeSvcSignCert, podRange, kubeCtrlMgrOutputHandler, kubeCtrlMgrExitHandler)
 	if err != nil {
 		log.WithError(err).Fatal("Couldn't create controller-manager handler")
 		os.Exit(-1)

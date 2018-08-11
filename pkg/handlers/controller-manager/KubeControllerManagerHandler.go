@@ -26,6 +26,8 @@ type ControllerManagerHandler struct {
 	kubeClusterCACert string
 	// Path to kube cluster CA certificate key
 	kubeClusterCAKey string
+	// Path to a key used to sign service account tokens
+	kubeSvcKey string
 	// IP range for pods (CIDR)
 	podRange string
 	// Path to kubeconfig
@@ -36,7 +38,7 @@ type ControllerManagerHandler struct {
 	out handlers.OutputHander
 }
 
-func NewControllerManagerHandler(binary, kubeconfig, listenAddress string, server, client, ca, clusterCA *pki.RSACertificate, podRange string, out handlers.OutputHander, exit handlers.ExitHandler) *ControllerManagerHandler {
+func NewControllerManagerHandler(binary, kubeconfig, listenAddress string, server, client, ca, clusterCA, svcAcctCert *pki.RSACertificate, podRange string, out handlers.OutputHander, exit handlers.ExitHandler) *ControllerManagerHandler {
 	obj := &ControllerManagerHandler{
 		binary:            binary,
 		kubeServerCert:    server.CertPath,
@@ -48,6 +50,7 @@ func NewControllerManagerHandler(binary, kubeconfig, listenAddress string, serve
 		kubeClusterCACert: clusterCA.CertPath,
 		kubeClusterCAKey:  clusterCA.KeyPath,
 		podRange:          podRange,
+		kubeSvcKey:svcAcctCert.KeyPath,
 	}
 
 	obj.BaseServiceHandler = *handlers.NewHandler(exit, obj.healthCheckFun, "https://"+listenAddress+":7000/healthz",
@@ -83,6 +86,8 @@ func (handler *ControllerManagerHandler) Start() error {
 		handler.kubeServerCert,
 		"--tls-private-key-file",
 		handler.kubeServerKey,
+		"--service-account-private-key-file",
+		handler.kubeSvcKey,
 	}, handler.BaseServiceHandler.HandleExit, handler.out, handler.out)
 	return handler.cmd.Start()
 }
@@ -116,7 +121,7 @@ func KubeControllerManagerConstructor(ca, server, client *pki.RSACertificate, bi
 		return handlerList, errors.Wrap(err, "kubeconfig creation failed")
 	}
 
-	handlerList = append(handlerList, NewControllerManagerHandler(binary, kubeconfig, "127.0.0.1", kubeServer, kubeClient, kubeCA, ca, "127.10.11.0/24", outputHandler, exitHandler))
+	handlerList = append(handlerList, NewControllerManagerHandler(binary, kubeconfig, "127.0.0.1", kubeServer, kubeClient, kubeCA, ca, server, "127.10.11.0/24", outputHandler, exitHandler))
 
 	return handlerList, nil
 }
