@@ -84,7 +84,7 @@ func getDockerIPRanges() (myIP, podRangeStr, serviceRangeStr string) {
 		"svcs": serviceRange.String(),
 	}).Info("Network ranges calculated")
 
-	return podRange.IP.String(), podRange.String(), serviceRange.String()
+	return dockerNetworkIP, podRange.String(), serviceRange.String()
 }
 
 func main() {
