@@ -1,23 +1,26 @@
 package etcd
 
 import (
-	"github.com/pkg/errors"
+	"github.com/uubk/microkube/pkg/helpers"
 	"os/exec"
 	"testing"
 )
 
+// Test whether etcd actually starts correctly
 func TestEtcdStartup(t *testing.T) {
 	done := false
 	exitHandler := func(success bool, exitError *exec.ExitError) {
 		if !done {
-			panic(errors.Wrap(exitError, "etcd exit detected"))
+			t.Fatal("etcd exit detected", exitError)
 		}
 	}
-	handler, _, _, err := StartETCDForTest(exitHandler)
+	handler, _, _, _, err := helpers.StartHandlerForTest("etcd", EtcdHandlerConstructor, exitHandler, false, 1)
 	if err != nil {
-		t.Error("Test failed:", err)
+		t.Fatal("Test failed:", err)
 		return
 	}
 	done = true
-	handler.Stop()
+	for _, item := range handler {
+		item.Stop()
+	}
 }

@@ -70,7 +70,7 @@ func (manager *CertManager) writeCertToFiles(name string, privateKey *rsa.Privat
 	}, nil
 }
 
-func (manager *CertManager) NewSelfSignedCert(name string, x509Name pkix.Name, serial int64) (*RSACertificate, error) {
+func (manager *CertManager) NewSelfSignedCACert(name string, x509Name pkix.Name, serial int64) (*RSACertificate, error) {
 	// Generate cert
 	privateKey, err := rsa.GenerateKey(rand.Reader, manager.keysize)
 	if err != nil {
@@ -82,6 +82,29 @@ func (manager *CertManager) NewSelfSignedCert(name string, x509Name pkix.Name, s
 		NotBefore:             time.Now(),
 		NotAfter:              time.Now().Add(manager.validity),
 		KeyUsage:              x509.KeyUsageCertSign,
+		BasicConstraintsValid: true,
+		IsCA: true,
+	}
+	cert, err := x509.CreateCertificate(rand.Reader, &certTmpl, &certTmpl, &privateKey.PublicKey, privateKey)
+	if err != nil {
+		return nil, errors.Wrap(err, "certificate template creation failed")
+	}
+
+	return manager.writeCertToFiles(name, privateKey, &cert, &certTmpl)
+}
+
+func (manager *CertManager) NewSelfSignedCert(name string, x509Name pkix.Name, serial int64) (*RSACertificate, error) {
+	// Generate cert
+	privateKey, err := rsa.GenerateKey(rand.Reader, manager.keysize)
+	if err != nil {
+		return nil, errors.Wrap(err, "key creation failed")
+	}
+	certTmpl := x509.Certificate{
+		SerialNumber:          big.NewInt(serial),
+		Subject:               x509Name,
+		NotBefore:             time.Now(),
+		NotAfter:              time.Now().Add(manager.validity),
+		KeyUsage:              x509.KeyUsageCertSign | x509.KeyUsageKeyEncipherment | x509.KeyUsageDigitalSignature,
 		BasicConstraintsValid: true,
 		IsCA: true,
 	}

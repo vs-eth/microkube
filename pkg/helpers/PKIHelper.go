@@ -8,7 +8,7 @@ import (
 
 func CertHelper(pkidir, pkiname string) (*pki.RSACertificate, *pki.RSACertificate, *pki.RSACertificate, error) {
 	certmgr := pki.NewManager(pkidir)
-	ca, err := certmgr.NewSelfSignedCert(pkiname+"-CA", pkix.Name{
+	ca, err := certmgr.NewSelfSignedCACert(pkiname+"-CA", pkix.Name{
 		CommonName: pkiname + "-CA",
 	}, 1)
 	if err != nil {
@@ -19,6 +19,7 @@ func CertHelper(pkidir, pkiname string) (*pki.RSACertificate, *pki.RSACertificat
 	}, 2, true, []string{
 		"127.0.0.1",
 		"localhost",
+		"0.0.0.0",
 	}, ca)
 	if err != nil {
 		return nil, nil, nil, errors.Wrap(err, "server certificate creation failed")

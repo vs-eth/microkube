@@ -2,6 +2,7 @@ package helpers
 
 import (
 	"github.com/pkg/errors"
+	"github.com/uubk/microkube/pkg/handlers"
 	"os"
 	"os/exec"
 	"os/signal"
@@ -11,12 +12,12 @@ type CmdHandler struct {
 	binary string
 	args   []string
 	cmd    *exec.Cmd
-	exit   ExitHandler
-	stdout OutputHander
-	stderr OutputHander
+	exit   handlers.ExitHandler
+	stdout handlers.OutputHander
+	stderr handlers.OutputHander
 }
 
-func NewCmdHandler(binary string, args []string, exit ExitHandler, stdout OutputHander, stderr OutputHander) *CmdHandler {
+func NewCmdHandler(binary string, args []string, exit handlers.ExitHandler, stdout handlers.OutputHander, stderr handlers.OutputHander) *CmdHandler {
 	return &CmdHandler{
 		binary: binary,
 		args:   args,

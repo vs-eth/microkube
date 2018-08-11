@@ -2,46 +2,64 @@ package kube_apiserver
 
 import (
 	"github.com/pkg/errors"
+	"github.com/uubk/microkube/pkg/handlers"
 	"github.com/uubk/microkube/pkg/helpers"
+	"github.com/uubk/microkube/pkg/pki"
 	"io"
 	"io/ioutil"
 	"strings"
+	"github.com/uubk/microkube/pkg/handlers/etcd"
 )
 
 type KubeAPIServerHandler struct {
-	helpers.HandlerHelper
-	binary         string
+	handlers.BaseServiceHandler
+	cmd *helpers.CmdHandler
+
+	// Kube-apiserver binary location
+	binary string
+	// Path to kube-apiserver certificate
 	kubeServerCert string
-	kubeServerKey  string
+	// Path to kube-apiserver certificate key
+	kubeServerKey string
+	// Path to a client certificate signed by the same CA as the server certificate
 	kubeClientCert string
-	kubeClientKey  string
-	kubeCACert     string
-	etcdCACert     string
+	// Path to the key matching the client certificate
+	kubeClientKey string
+	// Path to CA used to sign the above certificates
+	kubeCACert string
+	// Path to etcd ca
+	etcdCACert string
+	// Path to a client certificate allowed to access etcd
 	etcdClientCert string
-	etcdClientKey  string
-	cmd            *helpers.CmdHandler
-	out            helpers.OutputHander
-	nodeRef        string
+	// Path to the key matching the above certificate
+	etcdClientKey string
+	// Output handler
+	out handlers.OutputHander
+	// Listen address
+	listenAddress string
+	// Service network in CIDR notation
+	serviceNet string
 }
 
-func NewKubeAPIServerHandler(binary, kubeServerCert, kubeServerKey, kubeClientCert, kubeClientKey, kubeCACert,
-	etcdClientCert, etcdClientKey, etcdCACert string, out helpers.OutputHander, exit helpers.ExitHandler, nodeRef string) *KubeAPIServerHandler {
+func NewKubeAPIServerHandler(binary string, kubeServer, kubeClient, kubeCA,
+	etcdClient, etcdCA *pki.RSACertificate, out handlers.OutputHander, exit handlers.ExitHandler, listenAddress string, serviceNet string) *KubeAPIServerHandler {
 	obj := &KubeAPIServerHandler{
 		binary:         binary,
-		kubeServerCert: kubeServerCert,
-		kubeServerKey:  kubeServerKey,
-		kubeClientCert: kubeClientCert,
-		kubeClientKey:  kubeClientKey,
-		kubeCACert:     kubeCACert,
-		etcdClientCert: etcdClientCert,
-		etcdClientKey:  etcdClientKey,
-		etcdCACert:     etcdCACert,
+		kubeServerCert: kubeServer.CertPath,
+		kubeServerKey:  kubeServer.KeyPath,
+		kubeClientCert: kubeClient.CertPath,
+		kubeClientKey:  kubeClient.KeyPath,
+		kubeCACert:     kubeCA.CertPath,
+		etcdClientCert: etcdClient.CertPath,
+		etcdClientKey:  etcdClient.KeyPath,
+		etcdCACert:     etcdCA.CertPath,
 		cmd:            nil,
 		out:            out,
-		nodeRef:        nodeRef,
+		listenAddress:  listenAddress,
+		serviceNet:     serviceNet,
 	}
-	obj.HandlerHelper = *helpers.NewHandlerHelper(exit, obj.healthCheckFun, "https://"+ nodeRef + ":7443/healthz",
-		obj.stop, obj.Start)
+	obj.BaseServiceHandler = *handlers.NewHandler(exit, obj.healthCheckFun, "https://"+listenAddress+":7443/healthz",
+		obj.stop, obj.Start, kubeCA, kubeClient)
 	return obj
 }
 
@@ -54,7 +72,7 @@ func (handler *KubeAPIServerHandler) stop() {
 func (handler *KubeAPIServerHandler) Start() error {
 	handler.cmd = helpers.NewCmdHandler(handler.binary, []string{
 		"--bind-address",
-		handler.nodeRef,
+		handler.listenAddress,
 		"--insecure-port",
 		"0",
 		"--secure-port",
@@ -63,6 +81,8 @@ func (handler *KubeAPIServerHandler) Start() error {
 		"7443",
 		"--service-node-port-range",
 		"7000-9000",
+		"--service-cluster-ip-range",
+		handler.serviceNet,
 		"--allow-privileged",
 		"--anonymous-auth",
 		"false",
@@ -88,7 +108,7 @@ func (handler *KubeAPIServerHandler) Start() error {
 		handler.kubeServerCert,
 		"--tls-private-key-file",
 		handler.kubeServerKey,
-	}, handler.HandlerHelper.HandleExit, handler.out, handler.out)
+	}, handler.BaseServiceHandler.HandleExit, handler.out, handler.out)
 	return handler.cmd.Start()
 }
 
@@ -101,4 +121,15 @@ func (handler *KubeAPIServerHandler) healthCheckFun(responseBin *io.ReadCloser) 
 		return errors.New("Health != ok: " + string(str))
 	}
 	return nil
+}
+
+// This function is supposed to be only used for testing
+func KubeApiServerConstructor (ca, server, client *pki.RSACertificate, binary, workdir string, outputHandler handlers.OutputHander, exitHandler handlers.ExitHandler) ([]handlers.ServiceHandler, error) {
+	handlerList, etcdCA, etcdClient, _, err := helpers.StartHandlerForTest("etcd", etcd.EtcdHandlerConstructor, exitHandler, false, 1)
+	if err != nil {
+		return handlerList, errors.Wrap(err, "etcd startup prereq failed")
+	}
+	handlerList = append(handlerList, NewKubeAPIServerHandler(binary, server, client, ca, etcdClient, etcdCA, outputHandler, exitHandler, "0.0.0.0", "127.10.10.0/24"))
+
+	return handlerList, nil
 }

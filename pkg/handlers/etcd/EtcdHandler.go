@@ -3,37 +3,50 @@ package etcd
 import (
 	"encoding/json"
 	"github.com/pkg/errors"
+	"github.com/uubk/microkube/pkg/handlers"
 	"github.com/uubk/microkube/pkg/helpers"
+	"github.com/uubk/microkube/pkg/pki"
 	"io"
 	"strconv"
 )
 
+// Take care of running a single etcd listening on (hardcoded) localhost.
 type EtcdHandler struct {
-	helpers.HandlerHelper
-	datadir    string
-	binary     string
+	handlers.BaseServiceHandler
+	cmd *helpers.CmdHandler
+
+	// Where should etcd's data be stored?
+	datadir string
+	// etcd binary location
+	binary string
+	// Client port (currently hardcoded to 2379)
 	clientport int
-	peerport   int
+	// Peer port (currently hardcoded to 2380)
+	peerport int
+	// Path to etcd server certificate
 	servercert string
-	serverkey  string
-	cacert     string
-	cmd        *helpers.CmdHandler
-	out        helpers.OutputHander
+	// Path to etcd server certificate key
+	serverkey string
+	// Path to etcd ca certificate
+	cacert string
+	// Output handler
+	out handlers.OutputHander
 }
 
-func NewEtcdHandler(datadir, binary, servercert, serverkey, cacert string, out helpers.OutputHander, retries int, exit helpers.ExitHandler) *EtcdHandler {
+func NewEtcdHandler(datadir, binary string, server, client, ca *pki.RSACertificate, out handlers.OutputHander, exit handlers.ExitHandler) *EtcdHandler {
 	obj := &EtcdHandler{
 		datadir:    datadir,
 		binary:     binary,
 		clientport: 2379,
 		peerport:   2380,
-		servercert: servercert,
-		serverkey:  serverkey,
-		cacert:     cacert,
+		servercert: server.CertPath,
+		serverkey:  server.KeyPath,
+		cacert:     ca.CertPath,
 		cmd:        nil,
 		out:        out,
 	}
-	obj.HandlerHelper = *helpers.NewHandlerHelper(exit, obj.healthCheckFun, "https://localhost:2379/health", obj.stop, obj.Start)
+	obj.BaseServiceHandler = *handlers.NewHandler(exit, obj.healthCheckFun,
+		"https://localhost:2379/health", obj.stop, obj.Start, ca, client)
 	return obj
 }
 
@@ -65,7 +78,7 @@ func (handler *EtcdHandler) Start() error {
 		handler.serverkey,
 		"--client-cert-auth",
 		"--peer-client-cert-auth",
-	}, handler.HandlerHelper.HandleExit, handler.out, handler.out)
+	}, handler.BaseServiceHandler.HandleExit, handler.out, handler.out)
 	return handler.cmd.Start()
 }
 
@@ -88,4 +101,11 @@ func (handler *EtcdHandler) healthCheckFun(responseBin *io.ReadCloser) error {
 		return errors.Wrap(err, "etcd is unhealthy!")
 	}
 	return nil
+}
+
+// This function is supposed to be only used for testing
+func EtcdHandlerConstructor (ca, server, client *pki.RSACertificate, binary, workdir string, outputHandler handlers.OutputHander, exitHandler handlers.ExitHandler) ([]handlers.ServiceHandler, error) {
+	return []handlers.ServiceHandler{
+		NewEtcdHandler(workdir, binary, server, client, ca, outputHandler, exitHandler),
+	}, nil
 }
