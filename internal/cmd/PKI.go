@@ -6,6 +6,7 @@ import (
 	"github.com/uubk/microkube/pkg/pki"
 	"os"
 	"path"
+	"github.com/pkg/errors"
 )
 
 // Ensure that a full PKI for 'name' exists in 'root', that is:
@@ -22,7 +23,12 @@ func EnsureFullPKI(root, name string, isKubeCA, isETCDCA bool, ip []string) (ca 
 		// Reuse CA code ;)
 		ca, err := EnsureCA(root, name)
 
-		ip = append(ip, "127.0.0.1", "localhost")
+		hostname, err := os.Hostname()
+		if err != nil {
+			return nil, nil, nil, errors.Wrap(err, "Couldn't read hostname")
+		}
+
+		ip = append(ip, "127.0.0.1", "localhost", hostname)
 		server, err := certMgr.NewCert("server", pkix.Name{
 			CommonName: name + " Server",
 		}, 2, true, isETCDCA, ip, ca)
