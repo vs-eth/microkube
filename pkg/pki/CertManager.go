@@ -116,7 +116,7 @@ func (manager *CertManager) NewSelfSignedCert(name string, x509Name pkix.Name, s
 	return manager.writeCertToFiles(name, privateKey, &cert, &certTmpl)
 }
 
-func (manager *CertManager) NewCert(name string, x509Name pkix.Name, serial int64, isServer bool, sans []string, ca *RSACertificate) (*RSACertificate, error) {
+func (manager *CertManager) NewCert(name string, x509Name pkix.Name, serial int64, isServer bool, isClient bool, sans []string, ca *RSACertificate) (*RSACertificate, error) {
 	// Generate cert
 	privateKey, err := rsa.GenerateKey(rand.Reader, manager.keysize)
 	if err != nil {
@@ -129,6 +129,7 @@ func (manager *CertManager) NewCert(name string, x509Name pkix.Name, serial int6
 		NotAfter:              time.Now().Add(manager.validity),
 		BasicConstraintsValid: true,
 		IsCA: false,
+		ExtKeyUsage: []x509.ExtKeyUsage{},
 	}
 	if isServer {
 		certTmpl.KeyUsage = x509.KeyUsageKeyEncipherment | x509.KeyUsageDigitalSignature
@@ -141,9 +142,10 @@ func (manager *CertManager) NewCert(name string, x509Name pkix.Name, serial int6
 				certTmpl.DNSNames = append(certTmpl.DNSNames, item)
 			}
 		}
-	} else {
-		certTmpl.KeyUsage = x509.KeyUsageKeyEncipherment | x509.KeyUsageDigitalSignature
-		certTmpl.ExtKeyUsage = []x509.ExtKeyUsage{x509.ExtKeyUsageClientAuth}
+	}
+	if isClient {
+		certTmpl.KeyUsage |= x509.KeyUsageKeyEncipherment | x509.KeyUsageDigitalSignature
+		certTmpl.ExtKeyUsage = append(certTmpl.ExtKeyUsage, x509.ExtKeyUsageClientAuth)
 	}
 
 	cert, err := x509.CreateCertificate(rand.Reader, &certTmpl, ca.cert, &privateKey.PublicKey, ca.key)

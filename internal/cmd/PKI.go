@@ -13,7 +13,7 @@ import (
 // * A server certificate with SANs 'ip' and name 'name Server' in server.pem and server.key
 // * A client certificate with name 'name Client' in 'client.pem' and 'client.key', optionally containing
 //   'system:masters' as O when 'isKubeCA' is set to true
-func EnsureFullPKI(root, name string, isKubeCA bool, ip []string) (ca *pki.RSACertificate, server *pki.RSACertificate, client *pki.RSACertificate, err error) {
+func EnsureFullPKI(root, name string, isKubeCA, isETCDCA bool, ip []string) (ca *pki.RSACertificate, server *pki.RSACertificate, client *pki.RSACertificate, err error) {
 	caFile := path.Join(root, "ca.pem")
 	_, err = os.Stat(caFile)
 	if err != nil {
@@ -25,7 +25,7 @@ func EnsureFullPKI(root, name string, isKubeCA bool, ip []string) (ca *pki.RSACe
 		ip = append(ip, "127.0.0.1", "localhost")
 		server, err := certMgr.NewCert("server", pkix.Name{
 			CommonName: name + " Server",
-		}, 2, true, ip, ca)
+		}, 2, true, isETCDCA, ip, ca)
 		if err != nil {
 			log.WithError(err).WithField("root", root).Fatal("Couldn't create server cert")
 			return nil, nil, nil, err
@@ -37,7 +37,7 @@ func EnsureFullPKI(root, name string, isKubeCA bool, ip []string) (ca *pki.RSACe
 		if isKubeCA {
 			clientName.Organization = []string{"system:masters"}
 		}
-		client, err := certMgr.NewCert("client", clientName, 3, false, nil, ca)
+		client, err := certMgr.NewCert("client", clientName, 3, false,true, nil, ca)
 		if err != nil {
 			log.WithError(err).WithField("root", root).Fatal("Couldn't create client cert")
 			return nil, nil, nil, err

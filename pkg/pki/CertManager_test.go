@@ -200,7 +200,7 @@ func TestCASignedClientCert(t *testing.T) {
 	cert, err := manager.NewCert("Testclient", pkix.Name{
 		Organization: []string{"system:masters"},
 		CommonName:   "Testclient",
-	}, 124, false, nil, caCert)
+	}, 124, false, true, nil, caCert)
 	if err != nil {
 		t.Error("Unexpected error when generating client cert", err)
 	}
@@ -226,7 +226,7 @@ func TestCASignedServerCert(t *testing.T) {
 	}
 	cert, err := manager.NewCert("Testserver", pkix.Name{
 		CommonName: "Testserver",
-	}, 124, true, []string{
+	}, 124, true, false, []string{
 		"127.0.0.1",
 		"example.com",
 	}, caCert)

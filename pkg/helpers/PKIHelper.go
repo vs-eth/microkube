@@ -16,7 +16,7 @@ func CertHelper(pkidir, pkiname string) (*pki.RSACertificate, *pki.RSACertificat
 	}
 	server, err := certmgr.NewCert(pkiname+"-Server", pkix.Name{
 		CommonName: pkiname + "-Server",
-	}, 2, true, []string{
+	}, 2, true, false, []string{
 		"127.0.0.1",
 		"localhost",
 		"0.0.0.0",
@@ -26,7 +26,7 @@ func CertHelper(pkidir, pkiname string) (*pki.RSACertificate, *pki.RSACertificat
 	}
 	client, err := certmgr.NewCert(pkiname+"-Client", pkix.Name{
 		CommonName: pkiname + "-Client",
-	}, 3, false, nil, ca)
+	}, 3, false, true, nil, ca)
 	if err != nil {
 		return nil, nil, nil, errors.Wrap(err, "client certificate creation failed")
 	}

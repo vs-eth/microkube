@@ -116,12 +116,12 @@ func main() {
 	cmd.EnsureDir(dir, "kubectls", 0770)
 	cmd.EnsureDir(dir, "kubestls", 0770)
 	cmd.EnsureDir(dir, "etcddata", 0770)
-	etcdCA, etcdServer, etcdClient, err := cmd.EnsureFullPKI(path.Join(dir, "etcdtls"), "Microkube ETCD", false, []string{dockerNetworkIP})
+	etcdCA, etcdServer, etcdClient, err := cmd.EnsureFullPKI(path.Join(dir, "etcdtls"), "Microkube ETCD", false, true, []string{dockerNetworkIP})
 	if err != nil {
 		log.WithError(err).Fatal("Couldn't create etcd PKI")
 		os.Exit(-1)
 	}
-	kubeCA, kubeServer, kubeClient, err := cmd.EnsureFullPKI(path.Join(dir, "kubetls"), "Microkube Kubernetes", true, []string{dockerNetworkIP})
+	kubeCA, kubeServer, kubeClient, err := cmd.EnsureFullPKI(path.Join(dir, "kubetls"), "Microkube Kubernetes", true, false, []string{dockerNetworkIP})
 	if err != nil {
 		log.WithError(err).Fatal("Couldn't create kubernetes PKI")
 		os.Exit(-1)
