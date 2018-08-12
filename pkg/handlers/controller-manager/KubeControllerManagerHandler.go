@@ -50,7 +50,7 @@ func NewControllerManagerHandler(binary, kubeconfig, listenAddress string, serve
 		kubeClusterCACert: clusterCA.CertPath,
 		kubeClusterCAKey:  clusterCA.KeyPath,
 		podRange:          podRange,
-		kubeSvcKey:svcAcctCert.KeyPath,
+		kubeSvcKey:        svcAcctCert.KeyPath,
 	}
 
 	obj.BaseServiceHandler = *handlers.NewHandler(exit, obj.healthCheckFun, "https://"+listenAddress+":7000/healthz",

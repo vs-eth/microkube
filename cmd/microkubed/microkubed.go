@@ -12,6 +12,7 @@ import (
 	"github.com/uubk/microkube/pkg/handlers/controller-manager"
 	"github.com/uubk/microkube/pkg/handlers/etcd"
 	"github.com/uubk/microkube/pkg/handlers/kube-apiserver"
+	"github.com/uubk/microkube/pkg/handlers/kube-scheduler"
 	"github.com/uubk/microkube/pkg/handlers/kubelet"
 	"github.com/uubk/microkube/pkg/helpers"
 	"net"
@@ -110,6 +111,7 @@ func main() {
 	cmd.EnsureDir(dir, "", 0770)
 	cmd.EnsureDir(dir, "kube", 0770)
 	cmd.EnsureDir(dir, "etcdtls", 0770)
+	cmd.EnsureDir(dir, "kubesched", 0770)
 	cmd.EnsureDir(dir, "kubetls", 0770)
 	cmd.EnsureDir(dir, "kubectls", 0770)
 	cmd.EnsureDir(dir, "kubestls", 0770)
@@ -154,6 +156,11 @@ func main() {
 	ctrlMgrBin, err := helpers.FindBinary("kube-controller-manager", dir)
 	if err != nil {
 		log.WithError(err).Fatal("Couldn't find kube-controller-manager binary")
+		os.Exit(-1)
+	}
+	kubeSchedBin, err := helpers.FindBinary("kube-scheduler", dir)
+	if err != nil {
+		log.WithError(err).Fatal("Couldn't find kube-scheduler binary")
 		os.Exit(-1)
 	}
 
@@ -285,6 +292,49 @@ func main() {
 		return
 	}
 
+	// Start scheduler
+	log.Debug("Starting kube-scheduler...")
+	kubeSchedOutputHandler := func(output []byte) {
+		log.WithField("app", "kube-scheduler").Info(string(output))
+	}
+	kubeSchedChan := make(chan bool, 2)
+	kubeSchedHealthChan := make(chan handlers.HealthMessage, 2)
+	kubeSchedExitHandler := func(success bool, exitError *exec.ExitError) {
+		log.WithFields(log.Fields{
+			"success": success,
+			"app":     "kube-scheduler",
+		}).WithError(exitError).Error("kube-scheduler stopped!")
+		kubeSchedChan <- success
+	}
+	kubeSchedHandler, err := kube_scheduler.NewKubeSchedulerHandler(kubeSchedBin, path.Join(dir, "kubesched"), path.Join(dir, "kube/", "kubeconfig"), kubeSchedOutputHandler, kubeSchedExitHandler)
+	if err != nil {
+		log.WithError(err).Fatal("Couldn't create kube-scheduler handler")
+		os.Exit(-1)
+	}
+	err = kubeSchedHandler.Start()
+	if err != nil {
+		log.WithError(err).Fatal("Couldn't start kube-scheduler")
+		os.Exit(-1)
+	}
+	defer kubeSchedHandler.Stop()
+
+	msg = handlers.HealthMessage{
+		IsHealthy: false,
+	}
+	for retries := 0; retries < 8 && !msg.IsHealthy; retries++ {
+		time.Sleep(1 * time.Second)
+		kubeSchedHandler.EnableHealthChecks(kubeSchedHealthChan, false)
+		msg = <-kubeSchedHealthChan
+		log.WithFields(log.Fields{
+			"app":    "kube-scheduler",
+			"health": msg.IsHealthy,
+		}).Debug("Healthcheck")
+	}
+	if !msg.IsHealthy {
+		log.WithError(msg.Error).Fatal("Kube-scheduler didn't become healthy in time!")
+		return
+	}
+
 	// Start kubelet
 	log.Debug("Starting kubelet...")
 	kubeletOutputHandler := func(output []byte) {
@@ -350,6 +400,9 @@ func main() {
 		case <-kubeCtrlMgrChan:
 			log.Fatal("Controller/manager exitted, aborting!")
 			return
+		case <-kubeSchedChan:
+			log.Fatal("Scheduler exitted, aborting!")
+			return
 		case msg = <-etcdHealthChan:
 			if !msg.IsHealthy {
 				log.WithField("app", "etcd").Warn("unhealthy!")
@@ -373,6 +426,12 @@ func main() {
 				log.WithField("app", "controller-manager").Warn("unhealthy!")
 			} else {
 				log.WithField("app", "controller-manager").Debug("healthy")
+			}
+		case msg = <-kubeSchedHealthChan:
+			if !msg.IsHealthy {
+				log.WithField("app", "kube-scheduler").Warn("unhealthy!")
+			} else {
+				log.WithField("app", "kube-scheduler").Debug("healthy")
 			}
 		}
 	}
