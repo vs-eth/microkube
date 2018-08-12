@@ -2,11 +2,11 @@ package cmd
 
 import (
 	"crypto/x509/pkix"
+	"github.com/pkg/errors"
 	log "github.com/sirupsen/logrus"
 	"github.com/uubk/microkube/pkg/pki"
 	"os"
 	"path"
-	"github.com/pkg/errors"
 )
 
 // Ensure that a full PKI for 'name' exists in 'root', that is:
@@ -43,7 +43,7 @@ func EnsureFullPKI(root, name string, isKubeCA, isETCDCA bool, ip []string) (ca 
 		if isKubeCA {
 			clientName.Organization = []string{"system:masters"}
 		}
-		client, err := certMgr.NewCert("client", clientName, 3, false,true, nil, ca)
+		client, err := certMgr.NewCert("client", clientName, 3, false, true, nil, ca)
 		if err != nil {
 			log.WithError(err).WithField("root", root).Fatal("Couldn't create client cert")
 			return nil, nil, nil, err

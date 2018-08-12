@@ -128,7 +128,7 @@ func (manager *CertManager) NewCert(name string, x509Name pkix.Name, serial int6
 		NotBefore:             time.Now(),
 		NotAfter:              time.Now().Add(manager.validity),
 		BasicConstraintsValid: true,
-		IsCA: false,
+		IsCA:        false,
 		ExtKeyUsage: []x509.ExtKeyUsage{},
 	}
 	if isServer {

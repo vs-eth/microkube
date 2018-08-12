@@ -3,22 +3,22 @@
 package kube
 
 import (
-	"github.com/uubk/microkube/internal/log"
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
+	"github.com/uubk/microkube/internal/log"
 	"regexp"
 	"strings"
 )
 
 type KubeLogParser struct {
 	log.BaseLogParser
-	app string
+	app            string
 	regexpInstance *regexp.Regexp
 }
 
-func NewKubeLogParser(app string) (*KubeLogParser) {
+func NewKubeLogParser(app string) *KubeLogParser {
 	obj := KubeLogParser{
-		app: app,
+		app:            app,
 		regexpInstance: regexp.MustCompile("[ ]+"),
 	}
 	obj.BaseLogParser = *log.NewBaseLogParser(obj.handleLine)
@@ -34,11 +34,11 @@ func (h *KubeLogParser) handleLine(lineStr string) error {
 			return errors.Wrap(err, "Couldn't decode line '"+lineStr+"'!")
 		}
 		if !ok {
-			return errors.New("Coudln't decode 'restful' line '"+ lineStr+ "'")
+			return errors.New("Coudln't decode 'restful' line '" + lineStr + "'")
 		}
 		logrus.WithFields(logrus.Fields{
 			"component": "restful",
-			"location": line.Location,
+			"location":  line.Location,
 			"app":       h.app,
 		}).Info(line.Message)
 	} else {

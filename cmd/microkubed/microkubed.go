@@ -8,6 +8,8 @@ import (
 	"github.com/mitchellh/go-homedir"
 	log "github.com/sirupsen/logrus"
 	"github.com/uubk/microkube/internal/cmd"
+	etcd2 "github.com/uubk/microkube/internal/log/etcd"
+	"github.com/uubk/microkube/internal/log/kube"
 	"github.com/uubk/microkube/pkg/handlers"
 	"github.com/uubk/microkube/pkg/handlers/controller-manager"
 	"github.com/uubk/microkube/pkg/handlers/etcd"
@@ -20,8 +22,6 @@ import (
 	"os/exec"
 	"path"
 	"time"
-	etcd2 "github.com/uubk/microkube/internal/log/etcd"
-	"github.com/uubk/microkube/internal/log/kube"
 )
 
 func getDockerIPRanges() (myIP, podRangeStr, serviceRangeStr string) {

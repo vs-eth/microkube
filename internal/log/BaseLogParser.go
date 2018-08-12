@@ -2,22 +2,22 @@ package log
 
 import (
 	"bufio"
-	"github.com/pkg/errors"
 	"bytes"
+	"github.com/pkg/errors"
 	"strings"
 )
 
-type LineHandlerFunc func(string) (error)
+type LineHandlerFunc func(string) error
 
 type BaseLogParser struct {
-	buf *bytes.Buffer
-	bufReader *bufio.Scanner
+	buf         *bytes.Buffer
+	bufReader   *bufio.Scanner
 	lineHandler LineHandlerFunc
 }
 
-func NewBaseLogParser(lineHandler LineHandlerFunc) (*BaseLogParser) {
+func NewBaseLogParser(lineHandler LineHandlerFunc) *BaseLogParser {
 	obj := &BaseLogParser{
-		buf: &bytes.Buffer{},
+		buf:         &bytes.Buffer{},
 		lineHandler: lineHandler,
 	}
 	return obj

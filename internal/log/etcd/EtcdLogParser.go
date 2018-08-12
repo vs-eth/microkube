@@ -3,16 +3,16 @@
 package etcd
 
 import (
-	"github.com/uubk/microkube/internal/log"
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
+	"github.com/uubk/microkube/internal/log"
 )
 
 type ETCDLogParser struct {
 	log.BaseLogParser
 }
 
-func NewETCDLogParser() (*ETCDLogParser) {
+func NewETCDLogParser() *ETCDLogParser {
 	obj := ETCDLogParser{}
 	obj.BaseLogParser = *log.NewBaseLogParser(obj.handleLine)
 	return &obj
@@ -25,11 +25,11 @@ func (h *ETCDLogParser) handleLine(lineStr string) error {
 		return errors.Wrap(err, "Couldn't decode line '"+lineStr+"'!")
 	}
 	if !ok {
-		return errors.New("Couldn't decode line '"+ lineStr+ "'")
+		return errors.New("Couldn't decode line '" + lineStr + "'")
 	}
 
 	entry := logrus.WithFields(logrus.Fields{
-		"app": "etcd",
+		"app":       "etcd",
 		"component": string(line.Component),
 	})
 
@@ -47,8 +47,8 @@ func (h *ETCDLogParser) handleLine(lineStr string) error {
 	default:
 		logrus.WithFields(logrus.Fields{
 			"component": "EtcdLogParser",
-			"app": "microkube",
-			"level": line.Severity,
+			"app":       "microkube",
+			"level":     line.Severity,
 		}).Warn("Unknown severity level in etcd log parser")
 		entry.Warn(line.Message)
 	}
