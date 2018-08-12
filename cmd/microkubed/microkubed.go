@@ -20,6 +20,8 @@ import (
 	"os/exec"
 	"path"
 	"time"
+	etcd2 "github.com/uubk/microkube/internal/log/etcd"
+	"github.com/uubk/microkube/internal/log/kube"
 )
 
 func getDockerIPRanges() (myIP, podRangeStr, serviceRangeStr string) {
@@ -166,8 +168,12 @@ func main() {
 
 	// Start etcd
 	log.Debug("Starting etcd...")
+	etcdLogParser := etcd2.NewETCDLogParser()
 	etcdOutputHandler := func(output []byte) {
-		log.WithField("app", "etcd").Info(string(output))
+		err := etcdLogParser.HandleData(output)
+		if err != nil {
+			log.WithError(err).Warn("Couldn't parse log line!")
+		}
 	}
 	etcdChan := make(chan bool, 2)
 	etcdHealthChan := make(chan handlers.HealthMessage, 2)
@@ -197,8 +203,13 @@ func main() {
 
 	// Start Kube APIServer
 	log.Debug("Starting kube api server...")
+
+	kubeApiLogParser := kube.NewKubeLogParser("kube-api")
 	kubeAPIOutputHandler := func(output []byte) {
-		log.WithField("app", "kube-api").Info(string(output))
+		err := kubeApiLogParser.HandleData(output)
+		if err != nil {
+			log.WithError(err).Warn("Couldn't parse log line!")
+		}
 	}
 	kubeAPIChan := make(chan bool, 2)
 	kubeAPIHealthChan := make(chan handlers.HealthMessage, 2)
@@ -250,8 +261,12 @@ func main() {
 
 	// Start controller-manager
 	log.Debug("Starting controller-manager...")
+	kubeCtrlMgrParser := kube.NewKubeLogParser("kube-controller-manager")
 	kubeCtrlMgrOutputHandler := func(output []byte) {
-		log.WithField("app", "kube-controller-manager").Info(string(output))
+		err := kubeCtrlMgrParser.HandleData(output)
+		if err != nil {
+			log.WithError(err).Warn("Couldn't parse log line!")
+		}
 	}
 	kubeCtrlMgrChan := make(chan bool, 2)
 	kubeCtrlMgrHealthChan := make(chan handlers.HealthMessage, 2)
@@ -294,8 +309,12 @@ func main() {
 
 	// Start scheduler
 	log.Debug("Starting kube-scheduler...")
+	kubeSchedParser := kube.NewKubeLogParser("kube-scheduler")
 	kubeSchedOutputHandler := func(output []byte) {
-		log.WithField("app", "kube-scheduler").Info(string(output))
+		err := kubeSchedParser.HandleData(output)
+		if err != nil {
+			log.WithError(err).Warn("Couldn't parse log line!")
+		}
 	}
 	kubeSchedChan := make(chan bool, 2)
 	kubeSchedHealthChan := make(chan handlers.HealthMessage, 2)
@@ -337,8 +356,12 @@ func main() {
 
 	// Start kubelet
 	log.Debug("Starting kubelet...")
+	kubeletParser := kube.NewKubeLogParser("kube-scheduler")
 	kubeletOutputHandler := func(output []byte) {
-		log.WithField("app", "kube-api").Info(string(output))
+		err := kubeletParser.HandleData(output)
+		if err != nil {
+			log.WithError(err).Warn("Couldn't parse log line!")
+		}
 	}
 	kubeletChan := make(chan bool, 2)
 	kubeletHealthChan := make(chan handlers.HealthMessage, 2)
@@ -384,6 +407,7 @@ func main() {
 	kubeAPIHandler.EnableHealthChecks(kubeAPIHealthChan, true)
 	kubeletHandler.EnableHealthChecks(kubeletHealthChan, true)
 	kubeCtrlMgrHandler.EnableHealthChecks(kubeCtrlMgrHealthChan, true)
+	kubeSchedHandler.EnableHealthChecks(kubeSchedHealthChan, true)
 
 	// Main loop
 	for {
