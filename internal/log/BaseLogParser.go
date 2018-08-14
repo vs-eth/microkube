@@ -9,6 +9,10 @@ import (
 
 type LineHandlerFunc func(string) error
 
+type LogParser interface {
+	HandleData(data []byte) error
+}
+
 type BaseLogParser struct {
 	buf         *bytes.Buffer
 	bufReader   *bufio.Scanner

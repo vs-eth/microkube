@@ -8,6 +8,7 @@ import (
 	"github.com/mitchellh/go-homedir"
 	log "github.com/sirupsen/logrus"
 	"github.com/uubk/microkube/internal/cmd"
+	log2 "github.com/uubk/microkube/internal/log"
 	etcd2 "github.com/uubk/microkube/internal/log/etcd"
 	"github.com/uubk/microkube/internal/log/kube"
 	"github.com/uubk/microkube/pkg/handlers"
@@ -22,7 +23,59 @@ import (
 	"os/exec"
 	"path"
 	"time"
+	"github.com/uubk/microkube/pkg/handlers/kube-proxy"
 )
+
+type serviceConstructor func(handlers.OutputHander, handlers.ExitHandler) (handlers.ServiceHandler, error)
+
+func startService(name string, constructor serviceConstructor, logParser log2.LogParser) (handlers.ServiceHandler, chan bool, chan handlers.HealthMessage) {
+	log.Debug("Starting " + name + "...")
+	outputHandler := func(output []byte) {
+		err := logParser.HandleData(output)
+		if err != nil {
+			log.WithError(err).Warn("Couldn't parse log line!")
+		}
+	}
+	stateChan := make(chan bool, 2)
+	healthChan := make(chan handlers.HealthMessage, 2)
+	exitHandler := func(success bool, exitError *exec.ExitError) {
+		log.WithFields(log.Fields{
+			"success": success,
+			"app":     name,
+		}).WithError(exitError).Error(name + " stopped!")
+		stateChan <- success
+	}
+
+	serviceHandler, err := constructor(outputHandler, exitHandler)
+	if err != nil {
+		log.WithError(err).Fatal("Couldn't create " + name + " handler")
+		os.Exit(-1)
+	}
+	err = serviceHandler.Start()
+	if err != nil {
+		log.WithError(err).Fatal("Couldn't start " + name)
+		os.Exit(-1)
+	}
+
+	msg := handlers.HealthMessage{
+		IsHealthy: false,
+	}
+	for retries := 0; retries < 8 && !msg.IsHealthy; retries++ {
+		time.Sleep(1 * time.Second)
+		serviceHandler.EnableHealthChecks(healthChan, false)
+		msg = <-healthChan
+		log.WithFields(log.Fields{
+			"app":    name,
+			"health": msg.IsHealthy,
+		}).Debug("Healthcheck")
+	}
+	if !msg.IsHealthy {
+		log.WithError(msg.Error).Fatal(name + " didn't become healthy in time!")
+		os.Exit(-1)
+	}
+
+	return serviceHandler, stateChan, healthChan
+}
 
 func getDockerIPRanges() (myIP, podRangeStr, serviceRangeStr string) {
 	// Figure out if Docker is running and if it's network is something that we can use
@@ -165,86 +218,31 @@ func main() {
 		log.WithError(err).Fatal("Couldn't find kube-scheduler binary")
 		os.Exit(-1)
 	}
-
-	// Start etcd
-	log.Debug("Starting etcd...")
-	etcdLogParser := etcd2.NewETCDLogParser()
-	etcdOutputHandler := func(output []byte) {
-		err := etcdLogParser.HandleData(output)
-		if err != nil {
-			log.WithError(err).Warn("Couldn't parse log line!")
-		}
-	}
-	etcdChan := make(chan bool, 2)
-	etcdHealthChan := make(chan handlers.HealthMessage, 2)
-	etcdExitHandler := func(success bool, exitError *exec.ExitError) {
-		log.WithFields(log.Fields{
-			"success": success,
-			"app":     "etcd",
-		}).WithError(exitError).Error("etcd stopped!")
-		etcdChan <- success
-	}
-	etcdHandler := etcd.NewEtcdHandler(path.Join(dir, "etcddata"), etcdBin, etcdServer, etcdClient, etcdCA,
-		etcdOutputHandler, etcdExitHandler)
-	err = etcdHandler.Start()
+	kubeProxyBin, err := helpers.FindBinary("kube-proxy", dir)
 	if err != nil {
-		log.WithError(err).Fatal("Couldn't start etcd")
+		log.WithError(err).Fatal("Couldn't find kube-proxy binary")
 		os.Exit(-1)
 	}
+
+	// Start etcd
+	etcdHandler, etcdChan, etcdHealthChan := startService("etcd", func(etcdOutputHandler handlers.OutputHander,
+		etcdExitHandler handlers.ExitHandler) (handlers.ServiceHandler, error) {
+		return etcd.NewEtcdHandler(path.Join(dir, "etcddata"), etcdBin, etcdServer, etcdClient, etcdCA,
+			etcdOutputHandler, etcdExitHandler), nil
+	}, etcd2.NewETCDLogParser())
 	defer etcdHandler.Stop()
-	etcdHandler.EnableHealthChecks(etcdHealthChan, false)
-	msg := <-etcdHealthChan
-	if !msg.IsHealthy {
-		log.WithError(msg.Error).Fatal("ETCD didn't become healthy in time!")
-		return
-	} else {
-		log.Debug("ETCD ready")
-	}
+	log.Debug("ETCD ready")
 
 	// Start Kube APIServer
 	log.Debug("Starting kube api server...")
-
-	kubeApiLogParser := kube.NewKubeLogParser("kube-api")
-	kubeAPIOutputHandler := func(output []byte) {
-		err := kubeApiLogParser.HandleData(output)
-		if err != nil {
-			log.WithError(err).Warn("Couldn't parse log line!")
-		}
-	}
-	kubeAPIChan := make(chan bool, 2)
-	kubeAPIHealthChan := make(chan handlers.HealthMessage, 2)
-	kubeAPIExitHandler := func(success bool, exitError *exec.ExitError) {
-		log.WithFields(log.Fields{
-			"success": success,
-			"app":     "kube-api",
-		}).WithError(exitError).Error("kube-apiserver stopped!")
-		kubeAPIChan <- success
-	}
-	kubeAPIHandler := kube_apiserver.NewKubeAPIServerHandler(kubeApiBin, kubeServer, kubeClient, kubeCA, etcdClient,
-		etcdCA, kubeAPIOutputHandler, kubeAPIExitHandler, dockerNetworkIP, serviceRange)
-	err = kubeAPIHandler.Start()
-	if err != nil {
-		log.WithError(err).Fatal("Couldn't start kube apiserver")
-		os.Exit(-1)
-	}
+	kubeAPIHandler, kubeAPIChan, kubeAPIHealthChan := startService("kube-apiserver",
+		func(kubeAPIOutputHandler handlers.OutputHander,
+			kubeAPIExitHandler handlers.ExitHandler) (handlers.ServiceHandler, error) {
+			return kube_apiserver.NewKubeAPIServerHandler(kubeApiBin, kubeServer, kubeClient, kubeCA, etcdClient,
+				etcdCA, kubeAPIOutputHandler, kubeAPIExitHandler, dockerNetworkIP, serviceRange), nil
+		}, kube.NewKubeLogParser("kube-api"))
 	defer kubeAPIHandler.Stop()
-
-	msg = handlers.HealthMessage{
-		IsHealthy: false,
-	}
-	for retries := 0; retries < 8 && !msg.IsHealthy; retries++ {
-		time.Sleep(1 * time.Second)
-		kubeAPIHandler.EnableHealthChecks(kubeAPIHealthChan, false)
-		msg = <-kubeAPIHealthChan
-		log.WithFields(log.Fields{
-			"app":    "kube-api",
-			"health": msg.IsHealthy,
-		}).Debug("Healthcheck")
-	}
-	if !msg.IsHealthy {
-		log.WithError(msg.Error).Fatal("Kube APIServer didn't become healthy in time!")
-		return
-	}
+	log.Debug("Kube api server ready")
 
 	// Generate kubeconfig for kubelet and kubectl
 	log.Debug("Generating kubeconfig...")
@@ -261,146 +259,47 @@ func main() {
 
 	// Start controller-manager
 	log.Debug("Starting controller-manager...")
-	kubeCtrlMgrParser := kube.NewKubeLogParser("kube-controller-manager")
-	kubeCtrlMgrOutputHandler := func(output []byte) {
-		err := kubeCtrlMgrParser.HandleData(output)
-		if err != nil {
-			log.WithError(err).Warn("Couldn't parse log line!")
-		}
-	}
-	kubeCtrlMgrChan := make(chan bool, 2)
-	kubeCtrlMgrHealthChan := make(chan handlers.HealthMessage, 2)
-	kubeCtrlMgrExitHandler := func(success bool, exitError *exec.ExitError) {
-		log.WithFields(log.Fields{
-			"success": success,
-			"app":     "controller-manager",
-		}).WithError(exitError).Error("kubelet stopped!")
-		kubeCtrlMgrChan <- success
-	}
-	kubeCtrlMgrHandler := controller_manager.NewControllerManagerHandler(ctrlMgrBin, path.Join(dir, "kube/", "kubeconfig"),
-		dockerNetworkIP, kubeServer, kubeClient, kubeCA, kubeClusterCA, kubeSvcSignCert, podRange, kubeCtrlMgrOutputHandler, kubeCtrlMgrExitHandler)
-	if err != nil {
-		log.WithError(err).Fatal("Couldn't create controller-manager handler")
-		os.Exit(-1)
-	}
-	err = kubeCtrlMgrHandler.Start()
-	if err != nil {
-		log.WithError(err).Fatal("Couldn't start controller-manager")
-		os.Exit(-1)
-	}
+	kubeCtrlMgrHandler, kubeCtrlMgrChan, kubeCtrlMgrHealthChan := startService("kube-controller-manager",
+		func(kubeCtrlMgrOutputHandler handlers.OutputHander,
+			kubeCtrlMgrExitHandler handlers.ExitHandler) (handlers.ServiceHandler, error) {
+			return controller_manager.NewControllerManagerHandler(ctrlMgrBin, path.Join(dir, "kube/", "kubeconfig"),
+				dockerNetworkIP, kubeServer, kubeClient, kubeCA, kubeClusterCA, kubeSvcSignCert, podRange,
+				kubeCtrlMgrOutputHandler, kubeCtrlMgrExitHandler), nil
+		}, kube.NewKubeLogParser("kube-controller-manager"))
 	defer kubeCtrlMgrHandler.Stop()
-
-	msg = handlers.HealthMessage{
-		IsHealthy: false,
-	}
-	for retries := 0; retries < 8 && !msg.IsHealthy; retries++ {
-		time.Sleep(1 * time.Second)
-		kubeCtrlMgrHandler.EnableHealthChecks(kubeCtrlMgrHealthChan, false)
-		msg = <-kubeCtrlMgrHealthChan
-		log.WithFields(log.Fields{
-			"app":    "controller-manager",
-			"health": msg.IsHealthy,
-		}).Debug("Healthcheck")
-	}
-	if !msg.IsHealthy {
-		log.WithError(msg.Error).Fatal("Controller-manager didn't become healthy in time!")
-		return
-	}
+	log.Debug("Kube controller-manager ready")
 
 	// Start scheduler
 	log.Debug("Starting kube-scheduler...")
-	kubeSchedParser := kube.NewKubeLogParser("kube-scheduler")
-	kubeSchedOutputHandler := func(output []byte) {
-		err := kubeSchedParser.HandleData(output)
-		if err != nil {
-			log.WithError(err).Warn("Couldn't parse log line!")
-		}
-	}
-	kubeSchedChan := make(chan bool, 2)
-	kubeSchedHealthChan := make(chan handlers.HealthMessage, 2)
-	kubeSchedExitHandler := func(success bool, exitError *exec.ExitError) {
-		log.WithFields(log.Fields{
-			"success": success,
-			"app":     "kube-scheduler",
-		}).WithError(exitError).Error("kube-scheduler stopped!")
-		kubeSchedChan <- success
-	}
-	kubeSchedHandler, err := kube_scheduler.NewKubeSchedulerHandler(kubeSchedBin, path.Join(dir, "kubesched"), path.Join(dir, "kube/", "kubeconfig"), kubeSchedOutputHandler, kubeSchedExitHandler)
-	if err != nil {
-		log.WithError(err).Fatal("Couldn't create kube-scheduler handler")
-		os.Exit(-1)
-	}
-	err = kubeSchedHandler.Start()
-	if err != nil {
-		log.WithError(err).Fatal("Couldn't start kube-scheduler")
-		os.Exit(-1)
-	}
+	kubeSchedHandler, kubeSchedChan, kubeSchedHealthChan := startService("kube-scheduler",
+		func(kubeSchedOutputHandler handlers.OutputHander,
+			kubeSchedExitHandler handlers.ExitHandler) (handlers.ServiceHandler, error) {
+			return kube_scheduler.NewKubeSchedulerHandler(kubeSchedBin, path.Join(dir, "kubesched"),
+				path.Join(dir, "kube/", "kubeconfig"), kubeSchedOutputHandler, kubeSchedExitHandler)
+		}, kube.NewKubeLogParser("kube-scheduler"))
 	defer kubeSchedHandler.Stop()
-
-	msg = handlers.HealthMessage{
-		IsHealthy: false,
-	}
-	for retries := 0; retries < 8 && !msg.IsHealthy; retries++ {
-		time.Sleep(1 * time.Second)
-		kubeSchedHandler.EnableHealthChecks(kubeSchedHealthChan, false)
-		msg = <-kubeSchedHealthChan
-		log.WithFields(log.Fields{
-			"app":    "kube-scheduler",
-			"health": msg.IsHealthy,
-		}).Debug("Healthcheck")
-	}
-	if !msg.IsHealthy {
-		log.WithError(msg.Error).Fatal("Kube-scheduler didn't become healthy in time!")
-		return
-	}
+	log.Debug("Kube-scheduler ready")
 
 	// Start kubelet
 	log.Debug("Starting kubelet...")
-	kubeletParser := kube.NewKubeLogParser("kube-scheduler")
-	kubeletOutputHandler := func(output []byte) {
-		err := kubeletParser.HandleData(output)
-		if err != nil {
-			log.WithError(err).Warn("Couldn't parse log line!")
-		}
-	}
-	kubeletChan := make(chan bool, 2)
-	kubeletHealthChan := make(chan handlers.HealthMessage, 2)
-	kubeletExitHandler := func(success bool, exitError *exec.ExitError) {
-		log.WithFields(log.Fields{
-			"success": success,
-			"app":     "kubelet",
-		}).WithError(exitError).Error("kubelet stopped!")
-		kubeletChan <- success
-	}
-	kubeletHandler, err := kubelet.NewKubeletHandler(kubeletBin, path.Join(dir, "kube"), path.Join(dir, "kube/", "kubeconfig"),
-		dockerNetworkIP, kubeServer, kubeClient, kubeCA, kubeletOutputHandler, kubeletExitHandler)
-	if err != nil {
-		log.WithError(err).Fatal("Couldn't create kubelet handler")
-		os.Exit(-1)
-	}
-	err = kubeletHandler.Start()
-	if err != nil {
-		log.WithError(err).Fatal("Couldn't start kubelet")
-		os.Exit(-1)
-	}
-	defer kubeletHandler.Stop()
+	kubeletHandler, kubeletChan, kubeletHealthChan := startService("kubelet",
+		func(kubeletOutputHandler handlers.OutputHander,
+			kubeletExitHandler handlers.ExitHandler) (handlers.ServiceHandler, error) {
+			return kubelet.NewKubeletHandler(kubeletBin, path.Join(dir, "kube"), path.Join(dir, "kube/", "kubeconfig"),
+				dockerNetworkIP, kubeServer, kubeClient, kubeCA, kubeletOutputHandler, kubeletExitHandler)
+		}, kube.NewKubeLogParser("kubelet"))
+	defer kubeSchedHandler.Stop()
+	log.Debug("Kubelet ready")
 
-	msg = handlers.HealthMessage{
-		IsHealthy: false,
-	}
-	for retries := 0; retries < 8 && !msg.IsHealthy; retries++ {
-		time.Sleep(1 * time.Second)
-		kubeletHandler.EnableHealthChecks(kubeletHealthChan, false)
-		msg = <-kubeletHealthChan
-		log.WithFields(log.Fields{
-			"app":    "kubelet",
-			"health": msg.IsHealthy,
-		}).Debug("Healthcheck")
-	}
-	if !msg.IsHealthy {
-		log.WithError(msg.Error).Fatal("Kubelet didn't become healthy in time!")
-		return
-	}
+	// Start kube-proxy
+	log.Debug("Starting kube-prox...")
+	kubeProxyHandler, kubeProxyChan, kubeProxyHealthChan := startService("kube-proxy",
+		func(output handlers.OutputHander, exit handlers.ExitHandler) (handlers.ServiceHandler, error) {
+			return kube_proxy.NewKubeProxyHandler(kubeProxyBin, path.Join(dir, "kube"),
+				path.Join(dir, "kube/", "kubeconfig"), "", output, exit)
+		}, kube.NewKubeLogParser("kube-proxy"))
+	defer kubeProxyHandler.Stop()
+	log.Debug("kube-proxy ready")
 
 	// Start periodic health checks
 	etcdHandler.EnableHealthChecks(etcdHealthChan, true)
@@ -410,6 +309,7 @@ func main() {
 	kubeSchedHandler.EnableHealthChecks(kubeSchedHealthChan, true)
 
 	// Main loop
+	var msg handlers.HealthMessage
 	for {
 		select {
 		case <-kubeAPIChan:
@@ -426,6 +326,9 @@ func main() {
 			return
 		case <-kubeSchedChan:
 			log.Fatal("Scheduler exitted, aborting!")
+			return
+		case <-kubeProxyChan:
+			log.Fatal("Proxy exitted, aborting!")
 			return
 		case msg = <-etcdHealthChan:
 			if !msg.IsHealthy {
@@ -456,6 +359,12 @@ func main() {
 				log.WithField("app", "kube-scheduler").Warn("unhealthy!")
 			} else {
 				log.WithField("app", "kube-scheduler").Debug("healthy")
+			}
+		case msg = <-kubeProxyHealthChan:
+			if !msg.IsHealthy {
+				log.WithField("app", "kube-proxy").Warn("unhealthy!")
+			} else {
+				log.WithField("app", "kube-proxy").Debug("healthy")
 			}
 		}
 	}
