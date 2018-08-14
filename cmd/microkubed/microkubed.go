@@ -21,6 +21,12 @@ import (
 	"path"
 	"time"
 	"github.com/uubk/microkube/pkg/handlers/kube-proxy"
+	"k8s.io/client-go/kubernetes"
+	"k8s.io/client-go/tools/clientcmd"
+	"k8s.io/apimachinery/pkg/apis/meta/v1"
+	v12 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/types"
+	"encoding/json"
 )
 
 type serviceConstructor func(handlers.OutputHander, handlers.ExitHandler) (handlers.ServiceHandler, error)
@@ -122,6 +128,102 @@ func findBindAddress() (string) {
 		"component": "findIP",
 	}).Info("Didn't find interface with local IPv4, falling back to a public one")
 	return candidates[0].String()
+}
+
+type kubeBoolPatch struct {
+	Op    string `json:"op"`
+	Path  string `json:"path"`
+	Value bool `json:"value"`
+}
+
+func waitForNode(kubeconfig string) {
+	config, err := clientcmd.BuildConfigFromFlags("", kubeconfig)
+	if err != nil {
+		log.WithFields(log.Fields{
+			"app": "microkube",
+			"component": "kube-interface",
+			"kubeconfig": kubeconfig,
+		}).WithError(err).Fatalf("Couldn't load config from file!")
+		os.Exit(-1)
+	}
+	client, err := kubernetes.NewForConfig(config)
+	if err != nil {
+		log.WithFields(log.Fields{
+			"app": "microkube",
+			"component": "kube-interface",
+			"kubeconfig": kubeconfig,
+			"parsedConfig": config,
+		}).WithError(err).Fatalf("Couldn't create kubernetes client!")
+		os.Exit(-1)
+	}
+	for {
+		nodeList, err := client.CoreV1().Nodes().List(v1.ListOptions{})
+		if err != nil {
+			log.WithFields(log.Fields{
+				"app": "microkube",
+				"component": "kube-interface",
+			}).WithError(err).Fatalf("Couldn't list nodes!")
+			os.Exit(-1)
+		}
+		if len(nodeList.Items) < 1 {
+			log.WithFields(log.Fields{
+				"app": "microkube",
+				"component": "kube-interface",
+			}).Info("No node registered yet")
+			continue
+		}
+		if len(nodeList.Items) > 1 {
+			log.WithFields(log.Fields{
+				"app": "microkube",
+				"component": "kube-interface",
+				"nodeList": nodeList,
+			}).Fatalf("Too many nodes registered")
+			os.Exit(-1)
+		}
+		node := nodeList.Items[0]
+		nodeReady := false
+		statusChecked := false
+		for _, condition := range node.Status.Conditions {
+			if condition.Type == v12.NodeReady {
+				statusChecked = true
+				nodeReady = condition.Status == v12.ConditionTrue
+			}
+		}
+		if !statusChecked {
+			log.WithFields(log.Fields{
+				"app": "microkube",
+				"component": "kube-interface",
+			}).Warn("Node status is unavailable")
+		}
+		if nodeReady {
+			log.WithFields(log.Fields{
+				"app": "microkube",
+				"component": "kube-interface",
+				"canSchedule": !node.Spec.Unschedulable,
+			}).Info("Node now ready!")
+
+			if node.Spec.Unschedulable {
+				payload := []kubeBoolPatch{{
+					Op: "replace",
+					Path: "/spec/unschedulable",
+					Value: false,
+				}}
+				payloadBin, _ := json.Marshal(payload)
+				_, err := client.CoreV1().Nodes().Patch(node.ObjectMeta.Name, types.JSONPatchType, payloadBin)
+				if err != nil {
+					log.WithFields(log.Fields{
+						"app": "microkube",
+						"component": "kube-interface",
+						"node": node.ObjectMeta.Name,
+					}).WithError(err).Warn("Couldn't uncordon node!")
+				}
+			}
+
+			return
+		}
+		time.Sleep(1*time.Second)
+	}
+	print(client)
 }
 
 func main() {
@@ -332,6 +434,8 @@ func main() {
 		}, kube.NewKubeLogParser("kube-proxy"))
 	defer kubeProxyHandler.Stop()
 	log.Debug("kube-proxy ready")
+
+	waitForNode(path.Join(dir, "kube/", "kubeconfig"))
 
 	// Start periodic health checks
 	etcdHandler.EnableHealthChecks(etcdHealthChan, true)
