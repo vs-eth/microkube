@@ -33,6 +33,10 @@ type KubeAPIServerHandler struct {
 	etcdClientCert string
 	// Path to the key matching the above certificate
 	etcdClientKey string
+	// Service account signing cert public key
+	svcCert string
+	// Service account signing cert private key
+	svcKey string
 	// Output handler
 	out handlers.OutputHander
 	// Listen address
@@ -41,7 +45,7 @@ type KubeAPIServerHandler struct {
 	serviceNet string
 }
 
-func NewKubeAPIServerHandler(binary string, kubeServer, kubeClient, kubeCA,
+func NewKubeAPIServerHandler(binary string, kubeServer, kubeClient, kubeCA, kubeSvc,
 	etcdClient, etcdCA *pki.RSACertificate, out handlers.OutputHander, exit handlers.ExitHandler, listenAddress string, serviceNet string) *KubeAPIServerHandler {
 	obj := &KubeAPIServerHandler{
 		binary:         binary,
@@ -57,6 +61,8 @@ func NewKubeAPIServerHandler(binary string, kubeServer, kubeClient, kubeCA,
 		out:            out,
 		listenAddress:  listenAddress,
 		serviceNet:     serviceNet,
+		svcCert: kubeSvc.CertPath,
+		svcKey: kubeSvc.KeyPath,
 	}
 	obj.BaseServiceHandler = *handlers.NewHandler(exit, obj.healthCheckFun, "https://"+listenAddress+":7443/healthz",
 		obj.stop, obj.Start, kubeCA, kubeClient)
@@ -78,7 +84,7 @@ func (handler *KubeAPIServerHandler) Start() error {
 		"--secure-port",
 		"7443",
 		"--kubernetes-service-node-port",
-		"7443",
+		"7444",
 		"--service-node-port-range",
 		"7000-9000",
 		"--service-cluster-ip-range",
@@ -108,6 +114,10 @@ func (handler *KubeAPIServerHandler) Start() error {
 		handler.kubeServerCert,
 		"--tls-private-key-file",
 		handler.kubeServerKey,
+		"--service-account-key-file",
+		handler.svcCert,
+		"--service-account-key-file",
+		handler.svcKey,
 	}, handler.BaseServiceHandler.HandleExit, handler.out, handler.out)
 	return handler.cmd.Start()
 }
@@ -129,7 +139,7 @@ func KubeApiServerConstructor(ca, server, client *pki.RSACertificate, binary, wo
 	if err != nil {
 		return handlerList, errors.Wrap(err, "etcd startup prereq failed")
 	}
-	handlerList = append(handlerList, NewKubeAPIServerHandler(binary, server, client, ca, etcdClient, etcdCA, outputHandler, exitHandler, "0.0.0.0", "127.10.10.0/24"))
+	handlerList = append(handlerList, NewKubeAPIServerHandler(binary, server, client, ca, ca, etcdClient, etcdCA, outputHandler, exitHandler, "0.0.0.0", "127.10.10.0/24"))
 
 	return handlerList, nil
 }

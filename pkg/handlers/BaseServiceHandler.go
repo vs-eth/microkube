@@ -81,6 +81,7 @@ func (handler *BaseServiceHandler) healthCheckFun() error {
 
 		httpClient = &http.Client{
 			Transport: &http.Transport{
+				DisableKeepAlives: true,
 				TLSClientConfig: &tls.Config{
 					Certificates: []tls.Certificate{clientCert},
 					RootCAs:      caPool,
@@ -90,6 +91,7 @@ func (handler *BaseServiceHandler) healthCheckFun() error {
 	} else {
 		httpClient = &http.Client{
 			Transport: &http.Transport{
+				DisableKeepAlives: true,
 				TLSClientConfig: &tls.Config{},
 			},
 		}
@@ -116,6 +118,7 @@ func (handler *BaseServiceHandler) healthCheckFun() error {
 	}
 	responseBin := responseHTTP.Body
 	defer responseBin.Close()
+
 
 	return handler.healthCheckValidator(&responseBin)
 }

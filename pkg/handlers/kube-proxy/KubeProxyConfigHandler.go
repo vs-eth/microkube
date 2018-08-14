@@ -16,7 +16,6 @@ func CreateKubeProxyConfig(path, clusterCIDR, kubeconfig string) error {
 		Kubeconfig:  kubeconfig,
 		ClusterCIDR: clusterCIDR,
 	}
-	// clusterCIDR: "{{ .ClusterCIDR }}"
 	tmplStr := `apiVersion: kubeproxy.config.k8s.io/v1alpha1
 bindAddress: 0.0.0.0
 clientConnection:
@@ -26,6 +25,7 @@ clientConnection:
   kubeconfig: "{{ .Kubeconfig }}"
   qps: 5
 configSyncPeriod: 15m0s
+clusterCIDR: "{{ .ClusterCIDR }}"
 conntrack:
   max: 0
   maxPerCore: 32768

@@ -1,10 +1,7 @@
 package main
 
 import (
-	"context"
 	"flag"
-	"github.com/docker/docker/api/types"
-	"github.com/docker/docker/client"
 	"github.com/mitchellh/go-homedir"
 	log "github.com/sirupsen/logrus"
 	"github.com/uubk/microkube/internal/cmd"
@@ -77,78 +74,64 @@ func startService(name string, constructor serviceConstructor, logParser log2.Lo
 	return serviceHandler, stateChan, healthChan
 }
 
-func getDockerIPRanges() (myIP, podRangeStr, serviceRangeStr string) {
-	// Figure out if Docker is running and if it's network is something that we can use
-	docker, err := client.NewEnvClient()
+func findBindAddress() (string) {
+	ifaces, err := net.Interfaces()
 	if err != nil {
-		log.WithError(err).Fatal("Couldn't connect to the docker daemon")
+		log.WithError(err).Fatal("Couldn't read interface list")
 		os.Exit(-1)
 	}
-	dockerNetworks, err := docker.NetworkList(context.Background(), types.NetworkListOptions{})
-	if err != nil {
-		log.WithError(err).Fatal("Couldn't list docker networks")
-		os.Exit(-1)
-	}
-	dockerNetworkWanted := "bridge"
-	dockerNetworkIP := ""
-	dockerNetworkCIDR := ""
-	for _, net := range dockerNetworks {
-		if net.Name == dockerNetworkWanted {
-			if net.IPAM.Config == nil || len(net.IPAM.Config) != 1 {
-				log.Fatal("Docker network '" + dockerNetworkWanted + "' has wrong IP configuration")
-				os.Exit(-1)
+	candidates := []net.IP{}
+	_, loopback, _ := net.ParseCIDR("127.0.0.1/8")
+	for _, iface := range ifaces {
+		addrs, err := iface.Addrs()
+		if err != nil {
+			log.WithError(err).Warn("Couldn't read interface address")
+			continue
+		}
+		for _, addr := range addrs {
+			str := addr.String()
+			ip, _, err := net.ParseCIDR(str)
+			if err == nil && ip != nil && ip.To4() != nil && !loopback.Contains(ip) {
+				candidates = append(candidates, ip)
 			}
-			dockerNetworkIP = net.IPAM.Config[0].Gateway
-			dockerNetworkCIDR = net.IPAM.Config[0].Subnet
 		}
 	}
-	if dockerNetworkIP == "" || dockerNetworkCIDR == "" {
-		log.Fatal("Docker network '" + dockerNetworkWanted + "' not found!")
-		os.Exit(-1)
-	}
-	// Now that we have the network, let's try to split it into a pod and a service range
-	_, fullNet, err := net.ParseCIDR(dockerNetworkCIDR)
-	if err != nil {
-		log.WithError(err).Fatal("Couldn't parse docker network CIDR")
-		os.Exit(-1)
-	}
-	ones, bits := fullNet.Mask.Size()
-	if ones != 16 || bits != 32 {
-		log.WithFields(log.Fields{
-			"ones": ones,
-			"bits": bits,
-		}).Fatal("Unexpected netmask on docker CIDR")
-		os.Exit(-1)
-	}
-	podRange := net.IPNet{
-		IP:   make(net.IP, 4),
-		Mask: make(net.IPMask, 4),
-	}
-	copy(podRange.IP, fullNet.IP)
-	copy(podRange.Mask, fullNet.Mask)
-	podRange.Mask[2] = 255
-	serviceRange := net.IPNet{
-		IP:   make(net.IP, 4),
-		Mask: make(net.IPMask, 4),
-	}
-	copy(serviceRange.IP, fullNet.IP)
-	copy(serviceRange.Mask, fullNet.Mask)
-	serviceRange.Mask[2] = 255
-	serviceRange.IP[2]++
-	log.WithFields(log.Fields{
-		"pods": podRange.String(),
-		"svcs": serviceRange.String(),
-	}).Info("Network ranges calculated")
 
-	return dockerNetworkIP, podRange.String(), serviceRange.String()
+	_, privateA, _ := net.ParseCIDR("10.0.0.0/24")
+	_, privateB, _ := net.ParseCIDR("172.16.0.0/20")
+	_, privateC, _ := net.ParseCIDR("192.168.0.0/16")
+	if len(candidates) == 0 {
+		if err != nil {
+			log.WithError(err).Fatal("No non-loopback IPv4 addresses found")
+			os.Exit(-1)
+		}
+	}
+	log.WithFields(log.Fields{
+		"candidates": candidates,
+		"app": "microkube",
+		"component": "findIP",
+	}).Debug("Beginning cadidate selection")
+	for _, item := range candidates {
+		if privateA.Contains(item) ||  privateB.Contains(item) ||  privateC.Contains(item) {
+			return item.String()
+		}
+	}
+	log.WithFields(log.Fields{
+		"candidates": candidates,
+		"app": "microkube",
+		"component": "findIP",
+	}).Info("Didn't find interface with local IPv4, falling back to a public one")
+	return candidates[0].String()
 }
 
 func main() {
 	log.SetOutput(os.Stdout)
 	log.SetLevel(log.InfoLevel)
 
-	verbose := flag.Bool("verbose", true, "Enabel verbose output")
+	verbose := flag.Bool("verbose", true, "Enable verbose output")
 	root := flag.String("root", "~/.mukube", "Microkube root directory")
+	podRange := flag.String("pod-range", "10.233.42.1/24", "Pod IP range to use")
+	serviceRange := flag.String("service-range", "10.233.43.1/24", "Service IP range to use")
 	flag.Parse()
 
 	if *verbose {
@@ -160,7 +143,56 @@ func main() {
 		log.WithError(err).WithField("root", *root).Fatal("Couldn't expand root directory")
 		os.Exit(-1)
 	}
-	dockerNetworkIP, podRange, serviceRange := getDockerIPRanges()
+
+	podRangeIP, podRangeNet, err := net.ParseCIDR(*podRange)
+	if err != nil {
+		log.WithFields(log.Fields{
+			"range": *podRange,
+		}).WithError(err).Fatal("Couldn't parse pod CIDR range")
+		return
+	}
+	serviceRangeIP, serviceRangeNet, err := net.ParseCIDR(*serviceRange)
+	if err != nil {
+		log.WithFields(log.Fields{
+			"range": *podRange,
+		}).WithError(err).Fatal("Couldn't parse service CIDR range")
+		return
+	}
+	bindAddr := findBindAddress()
+
+	// To combine pod and service range to form the cluster range, find first diverging bit
+	baseOffset := 0
+	serviceBelowPod := false
+	for idx, octet := range serviceRangeNet.IP {
+		if podRangeNet.IP[idx] != octet {
+			// This octet diverges -> find bit
+			baseOffset = idx*8
+			for mask := byte(0x80) ; mask > 0 ; mask /= 2 {
+				baseOffset++
+				if (podRangeNet.IP[idx] & mask) != (octet & mask) {
+					// Found it
+					serviceBelowPod = octet < podRangeNet.IP[idx]
+					break
+				}
+			}
+			baseOffset--
+		}
+	}
+	clusterIPRange := net.IPNet{
+		IP: podRangeIP,
+	}
+	if serviceBelowPod {
+		clusterIPRange.IP = serviceRangeIP
+	}
+	clusterIPRange.Mask = net.CIDRMask(baseOffset, 32)
+	log.WithFields(log.Fields{
+		"podRange":     podRangeNet.String(),
+		"serviceRange": serviceRangeNet.String(),
+		"clusterRange": clusterIPRange.String(),
+		"hostIP":       bindAddr,
+	}).Info("IP ranges calculated")
+
+	//bindAddr, podRange, serviceRange := getDockerIPRanges()
 
 	// Handle certs
 	cmd.EnsureDir(dir, "", 0770)
@@ -171,12 +203,12 @@ func main() {
 	cmd.EnsureDir(dir, "kubectls", 0770)
 	cmd.EnsureDir(dir, "kubestls", 0770)
 	cmd.EnsureDir(dir, "etcddata", 0770)
-	etcdCA, etcdServer, etcdClient, err := cmd.EnsureFullPKI(path.Join(dir, "etcdtls"), "Microkube ETCD", false, true, []string{dockerNetworkIP})
+	etcdCA, etcdServer, etcdClient, err := cmd.EnsureFullPKI(path.Join(dir, "etcdtls"), "Microkube ETCD", false, true, []string{bindAddr})
 	if err != nil {
 		log.WithError(err).Fatal("Couldn't create etcd PKI")
 		os.Exit(-1)
 	}
-	kubeCA, kubeServer, kubeClient, err := cmd.EnsureFullPKI(path.Join(dir, "kubetls"), "Microkube Kubernetes", true, false, []string{dockerNetworkIP})
+	kubeCA, kubeServer, kubeClient, err := cmd.EnsureFullPKI(path.Join(dir, "kubetls"), "Microkube Kubernetes", true, false, []string{bindAddr, serviceRangeIP.String()})
 	if err != nil {
 		log.WithError(err).Fatal("Couldn't create kubernetes PKI")
 		os.Exit(-1)
@@ -238,8 +270,8 @@ func main() {
 	kubeAPIHandler, kubeAPIChan, kubeAPIHealthChan := startService("kube-apiserver",
 		func(kubeAPIOutputHandler handlers.OutputHander,
 			kubeAPIExitHandler handlers.ExitHandler) (handlers.ServiceHandler, error) {
-			return kube_apiserver.NewKubeAPIServerHandler(kubeApiBin, kubeServer, kubeClient, kubeCA, etcdClient,
-				etcdCA, kubeAPIOutputHandler, kubeAPIExitHandler, dockerNetworkIP, serviceRange), nil
+			return kube_apiserver.NewKubeAPIServerHandler(kubeApiBin, kubeServer, kubeClient, kubeCA, kubeSvcSignCert, etcdClient,
+				etcdCA, kubeAPIOutputHandler, kubeAPIExitHandler, bindAddr, *serviceRange), nil
 		}, kube.NewKubeLogParser("kube-api"))
 	defer kubeAPIHandler.Stop()
 	log.Debug("Kube api server ready")
@@ -250,7 +282,7 @@ func main() {
 	_, err = os.Stat(kubeconfig)
 	if err != nil {
 		log.Debug("Creating kubeconfig")
-		err = kube_apiserver.CreateClientKubeconfig(kubeCA, kubeClient, kubeconfig, dockerNetworkIP)
+		err = kube_apiserver.CreateClientKubeconfig(kubeCA, kubeClient, kubeconfig, bindAddr)
 		if err != nil {
 			log.WithError(err).Fatal("Couldn't create kubeconfig!")
 			return
@@ -263,7 +295,7 @@ func main() {
 		func(kubeCtrlMgrOutputHandler handlers.OutputHander,
 			kubeCtrlMgrExitHandler handlers.ExitHandler) (handlers.ServiceHandler, error) {
 			return controller_manager.NewControllerManagerHandler(ctrlMgrBin, path.Join(dir, "kube/", "kubeconfig"),
-				dockerNetworkIP, kubeServer, kubeClient, kubeCA, kubeClusterCA, kubeSvcSignCert, podRange,
+				bindAddr, kubeServer, kubeClient, kubeCA, kubeClusterCA, kubeSvcSignCert, *podRange,
 				kubeCtrlMgrOutputHandler, kubeCtrlMgrExitHandler), nil
 		}, kube.NewKubeLogParser("kube-controller-manager"))
 	defer kubeCtrlMgrHandler.Stop()
@@ -286,17 +318,17 @@ func main() {
 		func(kubeletOutputHandler handlers.OutputHander,
 			kubeletExitHandler handlers.ExitHandler) (handlers.ServiceHandler, error) {
 			return kubelet.NewKubeletHandler(kubeletBin, path.Join(dir, "kube"), path.Join(dir, "kube/", "kubeconfig"),
-				dockerNetworkIP, kubeServer, kubeClient, kubeCA, kubeletOutputHandler, kubeletExitHandler)
+				bindAddr, kubeServer, kubeClient, kubeCA, kubeletOutputHandler, kubeletExitHandler)
 		}, kube.NewKubeLogParser("kubelet"))
 	defer kubeSchedHandler.Stop()
 	log.Debug("Kubelet ready")
 
 	// Start kube-proxy
-	log.Debug("Starting kube-prox...")
+	log.Debug("Starting kube-proxy...")
 	kubeProxyHandler, kubeProxyChan, kubeProxyHealthChan := startService("kube-proxy",
 		func(output handlers.OutputHander, exit handlers.ExitHandler) (handlers.ServiceHandler, error) {
 			return kube_proxy.NewKubeProxyHandler(kubeProxyBin, path.Join(dir, "kube"),
-				path.Join(dir, "kube/", "kubeconfig"), "", output, exit)
+				path.Join(dir, "kube/", "kubeconfig"), clusterIPRange.String(), output, exit)
 		}, kube.NewKubeLogParser("kube-proxy"))
 	defer kubeProxyHandler.Stop()
 	log.Debug("kube-proxy ready")
