@@ -21,13 +21,10 @@ import (
 	"path"
 	"time"
 	"github.com/uubk/microkube/pkg/handlers/kube-proxy"
-	"k8s.io/client-go/kubernetes"
-	"k8s.io/client-go/tools/clientcmd"
-	"k8s.io/apimachinery/pkg/apis/meta/v1"
-	v12 "k8s.io/api/core/v1"
-	"k8s.io/apimachinery/pkg/types"
-	"encoding/json"
+	"os/signal"
 )
+
+var isDoneStarting bool
 
 type serviceConstructor func(handlers.OutputHander, handlers.ExitHandler) (handlers.ServiceHandler, error)
 
@@ -46,6 +43,13 @@ func startService(name string, constructor serviceConstructor, logParser log2.Lo
 			"success": success,
 			"app":     name,
 		}).WithError(exitError).Error(name + " stopped!")
+		if !isDoneStarting {
+			log.WithFields(log.Fields{
+				"success": success,
+				"app":     name,
+			}).WithError(exitError).Fatal("App exitted during startup phase, bailing out _now_")
+			os.Exit(-1)
+		}
 		stateChan <- success
 	}
 
@@ -80,155 +84,10 @@ func startService(name string, constructor serviceConstructor, logParser log2.Lo
 	return serviceHandler, stateChan, healthChan
 }
 
-func findBindAddress() (string) {
-	ifaces, err := net.Interfaces()
-	if err != nil {
-		log.WithError(err).Fatal("Couldn't read interface list")
-		os.Exit(-1)
-	}
-	candidates := []net.IP{}
-	_, loopback, _ := net.ParseCIDR("127.0.0.1/8")
-	for _, iface := range ifaces {
-		addrs, err := iface.Addrs()
-		if err != nil {
-			log.WithError(err).Warn("Couldn't read interface address")
-			continue
-		}
-		for _, addr := range addrs {
-			str := addr.String()
-			ip, _, err := net.ParseCIDR(str)
-			if err == nil && ip != nil && ip.To4() != nil && !loopback.Contains(ip) {
-				candidates = append(candidates, ip)
-			}
-		}
-	}
-
-	_, privateA, _ := net.ParseCIDR("10.0.0.0/24")
-	_, privateB, _ := net.ParseCIDR("172.16.0.0/20")
-	_, privateC, _ := net.ParseCIDR("192.168.0.0/16")
-	if len(candidates) == 0 {
-		if err != nil {
-			log.WithError(err).Fatal("No non-loopback IPv4 addresses found")
-			os.Exit(-1)
-		}
-	}
-	log.WithFields(log.Fields{
-		"candidates": candidates,
-		"app": "microkube",
-		"component": "findIP",
-	}).Debug("Beginning cadidate selection")
-	for _, item := range candidates {
-		if privateA.Contains(item) ||  privateB.Contains(item) ||  privateC.Contains(item) {
-			return item.String()
-		}
-	}
-	log.WithFields(log.Fields{
-		"candidates": candidates,
-		"app": "microkube",
-		"component": "findIP",
-	}).Info("Didn't find interface with local IPv4, falling back to a public one")
-	return candidates[0].String()
-}
-
-type kubeBoolPatch struct {
-	Op    string `json:"op"`
-	Path  string `json:"path"`
-	Value bool `json:"value"`
-}
-
-func waitForNode(kubeconfig string) {
-	config, err := clientcmd.BuildConfigFromFlags("", kubeconfig)
-	if err != nil {
-		log.WithFields(log.Fields{
-			"app": "microkube",
-			"component": "kube-interface",
-			"kubeconfig": kubeconfig,
-		}).WithError(err).Fatalf("Couldn't load config from file!")
-		os.Exit(-1)
-	}
-	client, err := kubernetes.NewForConfig(config)
-	if err != nil {
-		log.WithFields(log.Fields{
-			"app": "microkube",
-			"component": "kube-interface",
-			"kubeconfig": kubeconfig,
-			"parsedConfig": config,
-		}).WithError(err).Fatalf("Couldn't create kubernetes client!")
-		os.Exit(-1)
-	}
-	for {
-		nodeList, err := client.CoreV1().Nodes().List(v1.ListOptions{})
-		if err != nil {
-			log.WithFields(log.Fields{
-				"app": "microkube",
-				"component": "kube-interface",
-			}).WithError(err).Fatalf("Couldn't list nodes!")
-			os.Exit(-1)
-		}
-		if len(nodeList.Items) < 1 {
-			log.WithFields(log.Fields{
-				"app": "microkube",
-				"component": "kube-interface",
-			}).Info("No node registered yet")
-			continue
-		}
-		if len(nodeList.Items) > 1 {
-			log.WithFields(log.Fields{
-				"app": "microkube",
-				"component": "kube-interface",
-				"nodeList": nodeList,
-			}).Fatalf("Too many nodes registered")
-			os.Exit(-1)
-		}
-		node := nodeList.Items[0]
-		nodeReady := false
-		statusChecked := false
-		for _, condition := range node.Status.Conditions {
-			if condition.Type == v12.NodeReady {
-				statusChecked = true
-				nodeReady = condition.Status == v12.ConditionTrue
-			}
-		}
-		if !statusChecked {
-			log.WithFields(log.Fields{
-				"app": "microkube",
-				"component": "kube-interface",
-			}).Warn("Node status is unavailable")
-		}
-		if nodeReady {
-			log.WithFields(log.Fields{
-				"app": "microkube",
-				"component": "kube-interface",
-				"canSchedule": !node.Spec.Unschedulable,
-			}).Info("Node now ready!")
-
-			if node.Spec.Unschedulable {
-				payload := []kubeBoolPatch{{
-					Op: "replace",
-					Path: "/spec/unschedulable",
-					Value: false,
-				}}
-				payloadBin, _ := json.Marshal(payload)
-				_, err := client.CoreV1().Nodes().Patch(node.ObjectMeta.Name, types.JSONPatchType, payloadBin)
-				if err != nil {
-					log.WithFields(log.Fields{
-						"app": "microkube",
-						"component": "kube-interface",
-						"node": node.ObjectMeta.Name,
-					}).WithError(err).Warn("Couldn't uncordon node!")
-				}
-			}
-
-			return
-		}
-		time.Sleep(1*time.Second)
-	}
-	print(client)
-}
-
 func main() {
 	log.SetOutput(os.Stdout)
 	log.SetLevel(log.InfoLevel)
+	isDoneStarting = false
 
 	verbose := flag.Bool("verbose", true, "Enable verbose output")
 	root := flag.String("root", "~/.mukube", "Microkube root directory")
@@ -260,7 +119,7 @@ func main() {
 		}).WithError(err).Fatal("Couldn't parse service CIDR range")
 		return
 	}
-	bindAddr := findBindAddress()
+	bindAddr := cmd.FindBindAddress()
 
 	// To combine pod and service range to form the cluster range, find first diverging bit
 	baseOffset := 0
@@ -435,7 +294,28 @@ func main() {
 	defer kubeProxyHandler.Stop()
 	log.Debug("kube-proxy ready")
 
-	waitForNode(path.Join(dir, "kube/", "kubeconfig"))
+	kCl, err := cmd.NewKubeClient(path.Join(dir, "kube/", "kubeconfig"))
+	if err != nil {
+		log.WithError(err).Fatalf("Couldn't init kube client")
+		return
+	}
+	log.Info("Waiting for node...")
+	kCl.WaitForNode()
+	// Since we got to this point: Handle quitting gracefully (that is stop all pods!)
+	sigChan := make(chan os.Signal, 1)
+	exitChan := make(chan bool, 1)
+	go func() {
+		<-sigChan
+		log.Info("Shutting down...")
+		kCl.DrainNode()
+		exitChan <- true
+	}()
+	// Unregister "terminate immediately" handlers set during startup
+	signal.Reset(os.Interrupt, os.Kill)
+	// Register ordinary exit handler
+	signal.Notify(sigChan, os.Interrupt, os.Kill)
+	log.Info("Exit handler enabled...")
+	isDoneStarting = true
 
 	// Start periodic health checks
 	etcdHandler.EnableHealthChecks(etcdHealthChan, true)
@@ -502,6 +382,9 @@ func main() {
 			} else {
 				log.WithField("app", "kube-proxy").Debug("healthy")
 			}
+		case <-exitChan:
+			log.WithField("app", "microkube").Info("Exit signal received, stopping now.")
+			return
 		}
 	}
 }

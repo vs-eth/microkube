@@ -5,6 +5,7 @@ import (
 	"github.com/uubk/microkube/pkg/handlers"
 	"os"
 	"os/exec"
+	"syscall"
 	"os/signal"
 )
 
@@ -36,6 +37,11 @@ func (handler *CmdHandler) Stop() {
 
 func (handler *CmdHandler) Start() error {
 	handler.cmd = exec.Command(handler.binary, handler.args...)
+	// Detach from process group
+	handler.cmd.SysProcAttr = &syscall.SysProcAttr{
+		Setpgid: true,
+		Pgid:    0,
+	}
 
 	// Handle stdout
 	if handler.stdout != nil {
@@ -86,11 +92,13 @@ func (handler *CmdHandler) Start() error {
 	sigchan := make(chan os.Signal, 2)
 	statechan := make(chan bool, 2)
 	go func() {
-		select {
-		case _ = <-sigchan:
+		select { // Exit this because either...
+		// ... we got a signal, therefore terminating the process
+		case <-sigchan:
 			handler.cmd.Process.Kill()
 			return
-		case _ = <-statechan:
+		// ... we got an exit notification, terminating the routine
+		case <-statechan:
 			return
 		}
 	}()
