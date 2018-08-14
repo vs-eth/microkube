@@ -9,13 +9,17 @@ import (
 
 type KubeletConfigData struct {
 	CAFile        string
+	CertFile string
+	KeyFile string
 	StaticPodPath string
 }
 
-func CreateKubeletConfig(path string, ca *pki.RSACertificate, staticPodPath string) error {
+func CreateKubeletConfig(path string, server, ca *pki.RSACertificate, staticPodPath string) error {
 	data := KubeletConfigData{
 		CAFile:        ca.CertPath,
 		StaticPodPath: staticPodPath,
+		CertFile: server.CertPath,
+		KeyFile: server.KeyPath,
 	}
 	tmplStr := `kind: KubeletConfiguration
 apiVersion: kubelet.config.k8s.io/v1beta1
@@ -29,7 +33,10 @@ authentication:
 staticPodPath: {{ .StaticPodPath }}
 healthzBindAddress: 127.0.0.1
 healthzPort: 10248
-hostnameOverride: thisNode`
+kubeletCgroups: "/systemd/system.slice"
+tlsCertFile: {{ .CertFile }}
+tlsPrivateKeyFile: {{ .KeyFile }}
+`
 	// clusterDNS, clusterDomain
 	tmpl, err := template.New("Kubelet").Parse(tmplStr)
 	if err != nil {

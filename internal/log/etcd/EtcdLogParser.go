@@ -6,6 +6,7 @@ import (
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
 	"github.com/uubk/microkube/internal/log"
+	"strings"
 )
 
 type ETCDLogParser struct {
@@ -13,7 +14,8 @@ type ETCDLogParser struct {
 }
 
 func NewETCDLogParser() *ETCDLogParser {
-	obj := ETCDLogParser{}
+	obj := ETCDLogParser{
+	}
 	obj.BaseLogParser = *log.NewBaseLogParser(obj.handleLine)
 	return &obj
 }
@@ -32,6 +34,20 @@ func (h *ETCDLogParser) handleLine(lineStr string) error {
 		"app":       "etcd",
 		"component": string(line.Component),
 	})
+
+	// TODO(uubk): https://github.com/coreos/etcd/issues/9285 / https://github.com/kubernetes/kubernetes/issues/63316
+	// Basically kubernetes healthchecks etcd by only opening a TCP connection without completing the TLS handshake
+	// This will result in a warning *every single time* *every 10 seconds*
+	// At the moment, we simply drop those messages here :/
+	if line.Component == "embed" && strings.HasPrefix(line.Message, "rejected connection from \"127.0.0.1:") {
+		if strings.HasSuffix(line.Message, "\" (error \"EOF\", ServerName \"\")") {
+			return nil
+		}
+	}
+	// This warning _can not be disabled_. Drop it...
+	if line.Component == "etcdmain" && line.Message == "forgot to set Type=notify in systemd service file?" {
+		return nil
+	}
 
 	switch line.Severity {
 	case "I":

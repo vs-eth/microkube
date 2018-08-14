@@ -54,7 +54,7 @@ func NewKubeletHandler(binary, root, kubeconfig, listenAddress string, server, c
 	os.Mkdir(path.Join(root, "kubelet"), 0770)
 	os.Mkdir(path.Join(root, "staticpods"), 0770)
 
-	err := CreateKubeletConfig(obj.config, ca, path.Join(root, "staticpods"))
+	err := CreateKubeletConfig(obj.config, server, ca, path.Join(root, "staticpods"))
 	if err != nil {
 		return nil, err
 	}
@@ -91,10 +91,8 @@ func (handler *KubeletHandler) Start() error {
 		path.Join(handler.rootDir, "kubelet/checkpoint"),
 		"--network-plugin",
 		"kubenet",
-		"--tls-cert-file",
-		handler.kubeServerCert,
-		"--tls-private-key-file",
-		handler.kubeServerKey,
+		"--runtime-cgroups",
+		"/systemd/system.slice",
 	}, handler.BaseServiceHandler.HandleExit, handler.out, handler.out)
 	return handler.cmd.Start()
 }

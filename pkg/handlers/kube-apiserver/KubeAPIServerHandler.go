@@ -79,8 +79,6 @@ func (handler *KubeAPIServerHandler) Start() error {
 	handler.cmd = helpers.NewCmdHandler(handler.binary, []string{
 		"--bind-address",
 		handler.listenAddress,
-		"--insecure-port",
-		"0",
 		"--secure-port",
 		"7443",
 		"--kubernetes-service-node-port",
