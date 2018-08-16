@@ -56,6 +56,7 @@ func (handler *KubeProxyHandler) Start() error {
 	// use a sensible way to gain root. This only works when sudo can be done passwordless...
 	handler.cmd = helpers.NewCmdHandler("sudo", []string{
 		handler.binary,
+		"kube-proxy",
 		"--config",
 		handler.config,
 	}, handler.BaseServiceHandler.HandleExit, handler.out, handler.out)

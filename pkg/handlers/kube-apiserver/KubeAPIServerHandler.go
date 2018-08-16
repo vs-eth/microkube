@@ -77,6 +77,7 @@ func (handler *KubeAPIServerHandler) stop() {
 
 func (handler *KubeAPIServerHandler) Start() error {
 	handler.cmd = helpers.NewCmdHandler(handler.binary, []string{
+		"kube-apiserver",
 		"--bind-address",
 		handler.listenAddress,
 		"--secure-port",

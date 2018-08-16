@@ -52,6 +52,7 @@ func (handler *KubeSchedulerHandler) stop() {
 
 func (handler *KubeSchedulerHandler) Start() error {
 	handler.cmd = helpers.NewCmdHandler(handler.binary, []string{
+		"kube-scheduler",
 		"--config",
 		handler.config,
 	}, handler.BaseServiceHandler.HandleExit, handler.out, handler.out)

@@ -91,6 +91,7 @@ func main() {
 
 	verbose := flag.Bool("verbose", true, "Enable verbose output")
 	root := flag.String("root", "~/.mukube", "Microkube root directory")
+	extraBinDir := flag.String("extra-bin-dir", "", "Additional directory to search for executables")
 	podRange := flag.String("pod-range", "10.233.42.1/24", "Pod IP range to use")
 	serviceRange := flag.String("service-range", "10.233.43.1/24", "Service IP range to use")
 	flag.Parse()
@@ -186,35 +187,38 @@ func main() {
 	}
 
 	// Find binaries
-	etcdBin, err := helpers.FindBinary("etcd", dir)
+	etcdBin, err := helpers.FindBinary("etcd", dir, *extraBinDir)
 	if err != nil {
 		log.WithError(err).Fatal("Couldn't find etcd binary")
 		os.Exit(-1)
 	}
-	kubeApiBin, err := helpers.FindBinary("kube-apiserver", dir)
+	hyperkubeBin, err := helpers.FindBinary("hyperkube", dir, *extraBinDir)
 	if err != nil {
 		log.WithError(err).Fatal("Couldn't find kube apiserver binary")
 		os.Exit(-1)
 	}
-	kubeletBin, err := helpers.FindBinary("kubelet", dir)
-	if err != nil {
-		log.WithError(err).Fatal("Couldn't find kubelet binary")
-		os.Exit(-1)
+
+	// Special case: in case the extra binaries directory contains CNI plugins, copy them to the right location
+	cmd.EnsureDir(dir, path.Join("kube", "kubelet"), 0755)
+	cmd.EnsureDir(dir, path.Join("kube", "kubelet", "cni"), 0755)
+	cniPlugins := []string{
+		"bridge",
+		"host-local",
+		"loopback",
 	}
-	ctrlMgrBin, err := helpers.FindBinary("kube-controller-manager", dir)
-	if err != nil {
-		log.WithError(err).Fatal("Couldn't find kube-controller-manager binary")
-		os.Exit(-1)
-	}
-	kubeSchedBin, err := helpers.FindBinary("kube-scheduler", dir)
-	if err != nil {
-		log.WithError(err).Fatal("Couldn't find kube-scheduler binary")
-		os.Exit(-1)
-	}
-	kubeProxyBin, err := helpers.FindBinary("kube-proxy", dir)
-	if err != nil {
-		log.WithError(err).Fatal("Couldn't find kube-proxy binary")
-		os.Exit(-1)
+	for _, plugin := range cniPlugins {
+		_, err := os.Stat(path.Join(*extraBinDir, plugin))
+		if err == nil {
+			err = os.Link(path.Join(*extraBinDir, plugin), path.Join("kube", "kubelet", "cni", plugin))
+			if err != nil {
+				log.WithFields(log.Fields{
+					"src": path.Join(*extraBinDir, plugin),
+					"dest": path.Join("kube", "kubelet", "cni", plugin),
+					"app": "microkube",
+					"component": "prep",
+				}).WithError(err).Fatal("Couldn't link CNI plugin")
+			}
+		}
 	}
 
 	// Start etcd
@@ -231,7 +235,7 @@ func main() {
 	kubeAPIHandler, kubeAPIChan, kubeAPIHealthChan := startService("kube-apiserver",
 		func(kubeAPIOutputHandler handlers.OutputHander,
 			kubeAPIExitHandler handlers.ExitHandler) (handlers.ServiceHandler, error) {
-			return kube_apiserver.NewKubeAPIServerHandler(kubeApiBin, kubeServer, kubeClient, kubeCA, kubeSvcSignCert, etcdClient,
+			return kube_apiserver.NewKubeAPIServerHandler(hyperkubeBin, kubeServer, kubeClient, kubeCA, kubeSvcSignCert, etcdClient,
 				etcdCA, kubeAPIOutputHandler, kubeAPIExitHandler, bindAddr, *serviceRange), nil
 		}, kube.NewKubeLogParser("kube-api"))
 	defer kubeAPIHandler.Stop()
@@ -255,7 +259,7 @@ func main() {
 	kubeCtrlMgrHandler, kubeCtrlMgrChan, kubeCtrlMgrHealthChan := startService("kube-controller-manager",
 		func(kubeCtrlMgrOutputHandler handlers.OutputHander,
 			kubeCtrlMgrExitHandler handlers.ExitHandler) (handlers.ServiceHandler, error) {
-			return controller_manager.NewControllerManagerHandler(ctrlMgrBin, path.Join(dir, "kube/", "kubeconfig"),
+			return controller_manager.NewControllerManagerHandler(hyperkubeBin, path.Join(dir, "kube/", "kubeconfig"),
 				bindAddr, kubeServer, kubeClient, kubeCA, kubeClusterCA, kubeSvcSignCert, *podRange,
 				kubeCtrlMgrOutputHandler, kubeCtrlMgrExitHandler), nil
 		}, kube.NewKubeLogParser("kube-controller-manager"))
@@ -267,7 +271,7 @@ func main() {
 	kubeSchedHandler, kubeSchedChan, kubeSchedHealthChan := startService("kube-scheduler",
 		func(kubeSchedOutputHandler handlers.OutputHander,
 			kubeSchedExitHandler handlers.ExitHandler) (handlers.ServiceHandler, error) {
-			return kube_scheduler.NewKubeSchedulerHandler(kubeSchedBin, path.Join(dir, "kubesched"),
+			return kube_scheduler.NewKubeSchedulerHandler(hyperkubeBin, path.Join(dir, "kubesched"),
 				path.Join(dir, "kube/", "kubeconfig"), kubeSchedOutputHandler, kubeSchedExitHandler)
 		}, kube.NewKubeLogParser("kube-scheduler"))
 	defer kubeSchedHandler.Stop()
@@ -278,7 +282,7 @@ func main() {
 	kubeletHandler, kubeletChan, kubeletHealthChan := startService("kubelet",
 		func(kubeletOutputHandler handlers.OutputHander,
 			kubeletExitHandler handlers.ExitHandler) (handlers.ServiceHandler, error) {
-			return kubelet.NewKubeletHandler(kubeletBin, path.Join(dir, "kube"), path.Join(dir, "kube/", "kubeconfig"),
+			return kubelet.NewKubeletHandler(hyperkubeBin, path.Join(dir, "kube"), path.Join(dir, "kube/", "kubeconfig"),
 				bindAddr, kubeServer, kubeClient, kubeCA, kubeletOutputHandler, kubeletExitHandler)
 		}, kube.NewKubeLogParser("kubelet"))
 	defer kubeSchedHandler.Stop()
@@ -288,7 +292,7 @@ func main() {
 	log.Debug("Starting kube-proxy...")
 	kubeProxyHandler, kubeProxyChan, kubeProxyHealthChan := startService("kube-proxy",
 		func(output handlers.OutputHander, exit handlers.ExitHandler) (handlers.ServiceHandler, error) {
-			return kube_proxy.NewKubeProxyHandler(kubeProxyBin, path.Join(dir, "kube"),
+			return kube_proxy.NewKubeProxyHandler(hyperkubeBin, path.Join(dir, "kube"),
 				path.Join(dir, "kube/", "kubeconfig"), clusterIPRange.String(), output, exit)
 		}, kube.NewKubeLogParser("kube-proxy"))
 	defer kubeProxyHandler.Stop()

@@ -66,6 +66,7 @@ func (handler *ControllerManagerHandler) stop() {
 
 func (handler *ControllerManagerHandler) Start() error {
 	handler.cmd = helpers.NewCmdHandler(handler.binary, []string{
+		"kube-controller-manager",
 		"--allocate-node-cidrs",
 		"--cluster-cidr",
 		handler.podRange,

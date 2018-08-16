@@ -1,0 +1,20 @@
+image: docker:stable-git
+variables:
+  GIT_SUBMODULE_STRATEGY: recursive
+
+stages:
+  - build
+
+before_script:
+  - docker login -u sys_docker -p $CI_PUSH_PWD registry.vseth.ethz.ch
+
+build:
+  stage: build
+  script:
+    - git checkout -B "$CI_BUILD_REF_NAME" "$CI_BUILD_REF"
+    - docker build -t microkube-build .
+    - docker tag microkube-build registry.vseth.ethz.ch/it/microkube:${CI_COMMIT_REF_SLUG}
+    - docker tag microkube-build registry.vseth.ethz.ch/it/microkube:${CI_COMMIT_SHA}
+    - docker push registry.vseth.ethz.ch/it/microkube:${CI_COMMIT_REF_SLUG}
+    - docker push registry.vseth.ethz.ch/it/microkube:${CI_COMMIT_SHA}
+

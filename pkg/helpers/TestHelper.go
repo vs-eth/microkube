@@ -27,7 +27,7 @@ func StartHandlerForTest(name string, constructor UUTConstrutor, exitHandler han
 		}
 	}
 
-	wd, err := FindBinary(name, "")
+	wd, err := FindBinary(name, "", "")
 	if err != nil {
 		return nil, nil, nil, nil, errors.Wrap(err, "error while searching for etcd binary")
 	}
