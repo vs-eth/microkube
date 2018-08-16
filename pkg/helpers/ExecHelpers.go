@@ -53,7 +53,7 @@ func FindBinary(name string, appDir, extraDir string) (string, error) {
 	}
 	wd = path.Join(appDir, "third_party", name)
 	_, err = os.Stat(wd)
-	if err != nil {
+	if err == nil {
 		return wd, nil
 	}
 	wd = path.Join(extraDir, name)

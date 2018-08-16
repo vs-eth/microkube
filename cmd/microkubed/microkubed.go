@@ -209,14 +209,17 @@ func main() {
 	for _, plugin := range cniPlugins {
 		_, err := os.Stat(path.Join(*extraBinDir, plugin))
 		if err == nil {
-			err = os.Link(path.Join(*extraBinDir, plugin), path.Join("kube", "kubelet", "cni", plugin))
+			_, err := os.Stat(path.Join(dir, "kube", "kubelet", "cni", plugin))
 			if err != nil {
-				log.WithFields(log.Fields{
-					"src": path.Join(*extraBinDir, plugin),
-					"dest": path.Join("kube", "kubelet", "cni", plugin),
-					"app": "microkube",
-					"component": "prep",
-				}).WithError(err).Fatal("Couldn't link CNI plugin")
+				err = os.Link(path.Join(*extraBinDir, plugin), path.Join(dir, "kube", "kubelet", "cni", plugin))
+				if err != nil {
+					log.WithFields(log.Fields{
+						"src":       path.Join(*extraBinDir, plugin),
+						"dest":      path.Join(dir, "kube", "kubelet", "cni", plugin),
+						"app":       "microkube",
+						"component": "prep",
+					}).WithError(err).Fatal("Couldn't link CNI plugin")
+				}
 			}
 		}
 	}
