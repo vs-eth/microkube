@@ -83,7 +83,7 @@ func (handler *ControllerManagerHandler) stop() {
 	}
 }
 
-// See interface docs
+// Start starts the process, see interface docs
 func (handler *ControllerManagerHandler) Start() error {
 	handler.cmd = helpers.NewCmdHandler(handler.binary, []string{
 		"kube-controller-manager",
@@ -125,10 +125,10 @@ func (handler *ControllerManagerHandler) healthCheckFun(responseBin *io.ReadClos
 	return nil
 }
 
-// This function is supposed to be only used for testing
-func KubeControllerManagerConstructor(ca, server, client *pki.RSACertificate, binary, workdir string, outputHandler handlers.OutputHander, exitHandler handlers.ExitHandler) ([]handlers.ServiceHandler, error) {
+// kubeControllerManagerConstructor is supposed to be only used for testing
+func kubeControllerManagerConstructor(ca, server, client *pki.RSACertificate, binary, workdir string, outputHandler handlers.OutputHander, exitHandler handlers.ExitHandler) ([]handlers.ServiceHandler, error) {
 	// Start apiserver (and etcd)
-	handlerList, kubeCA, kubeClient, kubeServer, err := helpers.StartHandlerForTest("kube-apiserver", KubeApiServerConstructor, exitHandler, false, 30)
+	handlerList, kubeCA, kubeClient, kubeServer, err := helpers.StartHandlerForTest("kube-apiserver", kubeApiServerConstructor, exitHandler, false, 30)
 	if err != nil {
 		return handlerList, errors.Wrap(err, "kube-apiserver startup prereq failed")
 	}

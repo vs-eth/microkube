@@ -71,7 +71,7 @@ func (handler *KubeProxyHandler) stop() {
 	}
 }
 
-// See interface docs
+// Start starts the process, see interface docs
 func (handler *KubeProxyHandler) Start() error {
 	handler.cmd = helpers.NewCmdHandler("pkexec", []string{
 		handler.binary,

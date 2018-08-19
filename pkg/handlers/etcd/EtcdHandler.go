@@ -126,7 +126,7 @@ func (handler *EtcdHandler) healthCheckFun(responseBin *io.ReadCloser) error {
 	return nil
 }
 
-// This function is supposed to be only used for testing
+// EtcdHandlerConstructor is supposed to be only used for testing
 func EtcdHandlerConstructor(ca, server, client *pki.RSACertificate, binary, workdir string, outputHandler handlers.OutputHander, exitHandler handlers.ExitHandler) ([]handlers.ServiceHandler, error) {
 	return []handlers.ServiceHandler{
 		NewEtcdHandler(workdir, binary, server, client, ca, outputHandler, exitHandler),

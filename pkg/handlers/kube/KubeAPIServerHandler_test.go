@@ -36,7 +36,7 @@ func TestAPIServerStartup(t *testing.T) {
 			t.Fatal("exit detected", exitError)
 		}
 	}
-	handler, _, _, _, err := helpers.StartHandlerForTest("kube-apiserver", KubeApiServerConstructor, exitHandler, true, 30)
+	handler, _, _, _, err := helpers.StartHandlerForTest("kube-apiserver", kubeApiServerConstructor, exitHandler, true, 30)
 	if err != nil {
 		t.Fatal("Test failed:", err)
 		return
@@ -55,7 +55,7 @@ func TestAPIServerKubeconfig(t *testing.T) {
 			t.Fatal("exit detected", exitError)
 		}
 	}
-	handlers, ca, client, _, err := helpers.StartHandlerForTest("kube-apiserver", KubeApiServerConstructor, exitHandler, false, 30)
+	handlers, ca, client, _, err := helpers.StartHandlerForTest("kube-apiserver", kubeApiServerConstructor, exitHandler, false, 30)
 	if err != nil {
 		t.Fatal("Test failed:", err)
 		return

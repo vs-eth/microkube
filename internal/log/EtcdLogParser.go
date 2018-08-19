@@ -22,7 +22,7 @@ import (
 	"strings"
 )
 
-// KubeLogParser handles etcd-like log output
+// ETCDLogParser handles etcd-like log output
 type ETCDLogParser struct {
 	// Base ref
 	BaseLogParser

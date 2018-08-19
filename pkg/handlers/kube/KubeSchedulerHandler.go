@@ -69,7 +69,7 @@ func (handler *KubeSchedulerHandler) stop() {
 	}
 }
 
-// See interface docs
+// Start starts the process, see interface docs
 func (handler *KubeSchedulerHandler) Start() error {
 	handler.cmd = helpers.NewCmdHandler(handler.binary, []string{
 		"kube-scheduler",

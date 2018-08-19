@@ -40,6 +40,7 @@ type CertManager struct {
 	validity time.Duration
 }
 
+// RSACertificate holds information about an X509 certificate
 type RSACertificate struct {
 	// Certificate as parsed golang struct
 	cert *x509.Certificate

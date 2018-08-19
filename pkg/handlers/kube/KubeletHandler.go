@@ -28,7 +28,8 @@ import (
 	"strings"
 )
 
-// Handle a kubelet instance, that is the thing that actually schedules pods on nodes, interacting with docker
+// KubeletHandler handles a kubelet instance, that is the thing that actually schedules pods on nodes, interacting with
+// docker
 type KubeletHandler struct {
 	handlers.BaseServiceHandler
 	cmd *helpers.CmdHandler
@@ -88,7 +89,7 @@ func (handler *KubeletHandler) stop() {
 	}
 }
 
-// See interface docs
+// Start starts the process, see interface docs
 func (handler *KubeletHandler) Start() error {
 	handler.cmd = helpers.NewCmdHandler("pkexec", []string{
 		handler.binary,

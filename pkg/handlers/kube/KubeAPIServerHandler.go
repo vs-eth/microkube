@@ -97,7 +97,7 @@ func (handler *KubeAPIServerHandler) stop() {
 	}
 }
 
-// See interface docs
+// Start starts the process, see interface docs
 func (handler *KubeAPIServerHandler) Start() error {
 	handler.cmd = helpers.NewCmdHandler(handler.binary, []string{
 		"kube-apiserver",
@@ -156,8 +156,8 @@ func (handler *KubeAPIServerHandler) healthCheckFun(responseBin *io.ReadCloser) 
 	return nil
 }
 
-// This function is supposed to be only used for testing
-func KubeApiServerConstructor(ca, server, client *pki.RSACertificate, binary, workdir string, outputHandler handlers.OutputHander, exitHandler handlers.ExitHandler) ([]handlers.ServiceHandler, error) {
+// kubeApiServerConstructor is supposed to be only used for testing
+func kubeApiServerConstructor(ca, server, client *pki.RSACertificate, binary, workdir string, outputHandler handlers.OutputHander, exitHandler handlers.ExitHandler) ([]handlers.ServiceHandler, error) {
 	handlerList, etcdCA, etcdClient, _, err := helpers.StartHandlerForTest("etcd", etcd.EtcdHandlerConstructor, exitHandler, false, 1)
 	if err != nil {
 		return handlerList, errors.Wrap(err, "etcd startup prereq failed")
