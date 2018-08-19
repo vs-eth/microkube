@@ -38,6 +38,10 @@ func EnsureFullPKI(root, name string, isKubeCA, isETCDCA bool, ip []string) (ca 
 		certMgr := pki.NewManager(root)
 		// Reuse CA code ;)
 		ca, err := EnsureCA(root, name)
+		if err != nil {
+			log.WithError(err).WithField("root", root).Fatal("Couldn't create CA")
+			return nil, nil, nil, err
+		}
 
 		hostname, err := os.Hostname()
 		if err != nil {
