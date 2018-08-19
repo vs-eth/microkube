@@ -1,0 +1,17 @@
+sudo: required
+language: go
+notifications:
+  email: false
+
+go:
+- "1.10.x"
+
+before_install:
+# We need glide
+- wget https://github.com/Masterminds/glide/releases/download/v0.13.1/glide-v0.13.1-linux-amd64.zip
+- sha256sum -c .glide.sha256sum
+- unzip glide-v0.13.1-linux-amd64.zip
+- mv linux-amd64/glide $GOPATH/bin/ && chmod +x $GOPATH/bin/glide
+
+install:
+- glide i
