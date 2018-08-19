@@ -51,7 +51,7 @@ func NewBaseLogParser(lineHandler LineHandlerFunc) *BaseLogParser {
 	return obj
 }
 
-// See docs of interface type
+// HandleData is invoked for each new buffer of data, see docs of interface type
 func (lp *BaseLogParser) HandleData(data []byte) error {
 	lp.buf.Write(data)
 

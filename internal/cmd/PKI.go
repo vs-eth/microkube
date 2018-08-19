@@ -25,7 +25,7 @@ import (
 	"path"
 )
 
-// Ensure that a full PKI for 'name' exists in 'root', that is:
+// EnsureFullPKI ensures that a full PKI for 'name' exists in 'root', that is:
 //  - A CA certificate with name 'name CA' in ca.pem and ca.key
 //  - A server certificate with SANs 'ip' and name 'name Server' in server.pem and server.key
 //  - A client certificate with name 'name Client' in 'client.pem' and 'client.key', optionally containing
@@ -81,7 +81,7 @@ func EnsureFullPKI(root, name string, isKubeCA, isETCDCA bool, ip []string) (ca 
 		}, nil
 }
 
-// Ensure that a full CA for 'name' exists in 'root', that is:
+// EnsureCA ensures that a full CA for 'name' exists in 'root', that is:
 //  - A CA certificate with name 'name CA' in ca.pem and ca.key
 func EnsureCA(root, name string) (ca *pki.RSACertificate, err error) {
 	caFile := path.Join(root, "ca.pem")
@@ -106,7 +106,7 @@ func EnsureCA(root, name string) (ca *pki.RSACertificate, err error) {
 	}, nil
 }
 
-// Ensure that a signing cert for 'name' exists in 'root', that is:
+// EnsureSigningCert ensures that a signing cert for 'name' exists in 'root', that is:
 //  - A CA-like certificate (self-signed) with name 'name CA' in cert.pem and cert.key
 func EnsureSigningCert(root, name string) (ca *pki.RSACertificate, err error) {
 	caFile := path.Join(root, "cert.pem")

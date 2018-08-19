@@ -28,7 +28,7 @@ import (
 	"strings"
 )
 
-// ControllerManagerHandler handles invocation of the kubernetes apiserver
+// KubeAPIServerHandler handles invocation of the kubernetes apiserver
 type KubeAPIServerHandler struct {
 	// Base ref
 	handlers.BaseServiceHandler

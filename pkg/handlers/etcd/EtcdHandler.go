@@ -27,7 +27,7 @@ import (
 	"strconv"
 )
 
-// Take care of running a single etcd listening on (hardcoded) localhost.
+// EtcdHandler takes care of running a single etcd listening on (hardcoded) localhost.
 type EtcdHandler struct {
 	// Base ref
 	handlers.BaseServiceHandler
@@ -70,7 +70,7 @@ func NewEtcdHandler(datadir, binary string, server, client, ca *pki.RSACertifica
 	return obj
 }
 
-// See interface docs
+// Start starts the process, see interface docs
 func (handler *EtcdHandler) Start() error {
 	handler.cmd = helpers.NewCmdHandler(handler.binary, []string{
 		"--data-dir",

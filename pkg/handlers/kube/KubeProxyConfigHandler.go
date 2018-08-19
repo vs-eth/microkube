@@ -28,7 +28,7 @@ type kubeProxyConfigData struct {
 	ClusterCIDR string
 }
 
-// CreateClientKubeconfig creates a scheduler config with most things hardcoded and stores it in 'path'
+// CreateKubeProxyConfig creates a proxy config with most things hardcoded and stores it in 'path'
 func CreateKubeProxyConfig(path, clusterCIDR, kubeconfig string) error {
 	data := kubeProxyConfigData{
 		Kubeconfig:  kubeconfig,
