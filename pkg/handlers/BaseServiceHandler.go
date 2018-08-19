@@ -14,6 +14,7 @@
  * limitations under the License.
  */
 
+// Package handlers contains all functionality necessary to launch individual daemons
 package handlers
 
 import (

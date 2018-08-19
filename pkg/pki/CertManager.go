@@ -14,6 +14,7 @@
  * limitations under the License.
  */
 
+// Package pki contains helper functions for quickly bootstrapping X509 PKIs
 package pki
 
 import (

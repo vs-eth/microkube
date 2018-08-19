@@ -14,6 +14,7 @@
  * limitations under the License.
  */
 
+// Package main contains the microkubed run code ;)
 package main
 
 import "github.com/uubk/microkube/cmd/microkubed/cmd"
