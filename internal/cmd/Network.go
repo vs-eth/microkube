@@ -1,18 +1,19 @@
 package cmd
 
 import (
+	log "github.com/sirupsen/logrus"
 	"net"
 	"os"
-	log "github.com/sirupsen/logrus"
 )
 
-func FindBindAddress() (string) {
+// FindBindAddress tries to find a private IPv4 address from some local interface that can be used to bind services to it
+func FindBindAddress() net.IP {
 	ifaces, err := net.Interfaces()
 	if err != nil {
 		log.WithError(err).Fatal("Couldn't read interface list")
 		os.Exit(-1)
 	}
-	candidates := []net.IP{}
+	var candidates []net.IP
 	_, loopback, _ := net.ParseCIDR("127.0.0.1/8")
 	for _, iface := range ifaces {
 		addrs, err := iface.Addrs()
@@ -40,18 +41,18 @@ func FindBindAddress() (string) {
 	}
 	log.WithFields(log.Fields{
 		"candidates": candidates,
-		"app": "microkube",
-		"component": "findIP",
+		"app":        "microkube",
+		"component":  "findIP",
 	}).Debug("Beginning cadidate selection")
 	for _, item := range candidates {
-		if privateA.Contains(item) ||  privateB.Contains(item) ||  privateC.Contains(item) {
-			return item.String()
+		if privateA.Contains(item) || privateB.Contains(item) || privateC.Contains(item) {
+			return item
 		}
 	}
 	log.WithFields(log.Fields{
 		"candidates": candidates,
-		"app": "microkube",
-		"component": "findIP",
+		"app":        "microkube",
+		"component":  "findIP",
 	}).Info("Didn't find interface with local IPv4, falling back to a public one")
-	return candidates[0].String()
+	return candidates[0]
 }

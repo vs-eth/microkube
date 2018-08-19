@@ -1,14 +1,15 @@
 package pki
 
-import "os"
 import (
 	"bufio"
 	"crypto/x509/pkix"
 	"os/exec"
 	"strings"
 	"testing"
+	"os"
 )
 
+// checkCertProperties validates a given certificate's properties using the openssl commandline utility
 func checkCertProperties(t *testing.T, cert *RSACertificate, serial, issuerCN, subjectCN, keyUsage, isCA, eku,
 	sans string) {
 	certCheckCmd := exec.Command("openssl", "x509", "-in", cert.CertPath, "-text", "-noout")
@@ -126,6 +127,7 @@ func checkCertProperties(t *testing.T, cert *RSACertificate, serial, issuerCN, s
 	}
 }
 
+// checkCertKeyMatch checks whether a private key matches a certificate
 func checkCertKeyMatch(t *testing.T, cert *RSACertificate) {
 	certCheckCmd := exec.Command("openssl", "x509", "-in", cert.CertPath, "-modulus", "-noout")
 	certCheckBuf, err := certCheckCmd.Output()
@@ -148,7 +150,8 @@ func checkCertKeyMatch(t *testing.T, cert *RSACertificate) {
 	}
 }
 
-// This test creates a simple self-signed certificate and uses openssl to check it's attributes
+// TestSelfSignedCertProperties tests creation of a simple self-signed certificate and uses openssl to check it's
+// attributes
 func TestSelfSignedCertProperties(t *testing.T) {
 	tempDir := os.TempDir()
 	manager := NewManager(tempDir)
@@ -166,8 +169,8 @@ func TestSelfSignedCertProperties(t *testing.T) {
 		"Subject: CN = Testcert", "Certificate Sign", "CA:TRUE", "", "")
 }
 
-// This test creates a simple self-signed certificate and checks whether it's public and private key are readable and
-// match each other
+// TestSelfSignedCertMatch tests creation of a simple self-signed certificate and checks whether it's public and private
+// key are readable and match each other
 func TestSelfSignedCertMatch(t *testing.T) {
 	tempDir := os.TempDir()
 	manager := NewManager(tempDir)
@@ -184,7 +187,8 @@ func TestSelfSignedCertMatch(t *testing.T) {
 	checkCertKeyMatch(t, cert)
 }
 
-// This test creates a CA and a CA-signed client cert. The properties of the client cert are then examined
+// TestCASignedClientCert tests creation of a CA and a CA-signed client cert. The properties of the client cert are then
+// examined
 func TestCASignedClientCert(t *testing.T) {
 	tempDir := os.TempDir()
 	manager := NewManager(tempDir)
@@ -212,6 +216,8 @@ func TestCASignedClientCert(t *testing.T) {
 	checkCertKeyMatch(t, caCert)
 }
 
+// TestCASignedServerCert tests creation of a CA and a CA-signed server cert. The properties of the server cert are then
+// examined
 func TestCASignedServerCert(t *testing.T) {
 	tempDir := os.TempDir()
 	manager := NewManager(tempDir)

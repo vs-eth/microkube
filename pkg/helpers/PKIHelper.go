@@ -7,6 +7,7 @@ import (
 	"os"
 )
 
+// CertHelper generates a CA with a server and a client certificate for unit testing
 func CertHelper(pkidir, pkiname string) (*pki.RSACertificate, *pki.RSACertificate, *pki.RSACertificate, error) {
 	certmgr := pki.NewManager(pkidir)
 	ca, err := certmgr.NewSelfSignedCACert(pkiname+"-CA", pkix.Name{

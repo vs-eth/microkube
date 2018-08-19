@@ -1,4 +1,4 @@
-package kube_apiserver
+package kube
 
 import (
 	"encoding/base64"
@@ -9,7 +9,7 @@ import (
 	"os"
 )
 
-// Data used when templating a kubeconfig. For internal use only.
+// clientTemplateData contains data used when templating a kubeconfig. For internal use only.
 type clientTemplateData struct {
 	// CA certificate of the kube api server (base64'd PEM)
 	Ca string
@@ -21,7 +21,7 @@ type clientTemplateData struct {
 	Address string
 }
 
-// Encode file 'src' as base64 and return it as string
+// Base64EncodedPem encodes file 'src' as base64 and return it as string
 func Base64EncodedPem(src string) (string, error) {
 	content, err := ioutil.ReadFile(src)
 	if err != nil {
@@ -30,7 +30,8 @@ func Base64EncodedPem(src string) (string, error) {
 	return base64.StdEncoding.EncodeToString(content), nil
 }
 
-// Create a certificate-based kubeconfig with an apiserver at "https://<host>:7443" and store it in 'path'
+// CreateClientKubeconfig creates a certificate-based kubeconfig with an apiserver at "https://<host>:7443" and stores
+// it in 'path'
 func CreateClientKubeconfig(ca, cert *pki.RSACertificate, path, host string) error {
 	data := clientTemplateData{
 		Address: host,

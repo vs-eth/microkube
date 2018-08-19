@@ -1,25 +1,25 @@
-//go:generate ldetool generate --package etcd --go-string logs.lde
-
-package etcd
+package log
 
 import (
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
-	"github.com/uubk/microkube/internal/log"
 	"strings"
 )
 
+// KubeLogParser handles etcd-like log output
 type ETCDLogParser struct {
-	log.BaseLogParser
+	// Base ref
+	BaseLogParser
 }
 
+// NewETCDLogParser creates a ETCDLogParser
 func NewETCDLogParser() *ETCDLogParser {
-	obj := ETCDLogParser{
-	}
-	obj.BaseLogParser = *log.NewBaseLogParser(obj.handleLine)
+	obj := ETCDLogParser{}
+	obj.BaseLogParser = *NewBaseLogParser(obj.handleLine)
 	return &obj
 }
 
+// handleLine handles a single line of log output
 func (h *ETCDLogParser) handleLine(lineStr string) error {
 	line := ETCDLogLine{}
 	ok, err := line.Extract(lineStr)

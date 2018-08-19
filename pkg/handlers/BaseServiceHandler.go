@@ -14,8 +14,12 @@ import (
 	"time"
 )
 
+// StopHandler describes a function that get's called to stop a process
 type StopHandler func()
+// StartHandler describes a function that get's called to start a process, possibly returing an error
 type StartHandler func() error
+// HealthCheckValidatorFunction describes a function that get's called with the result of a health check to decode the
+// result
 type HealthCheckValidatorFunction func(result *io.ReadCloser) error
 
 // BaseServiceHandler serves as a base type for all handlers in github.com/uubk/microkube/pkg/handlers,
@@ -44,7 +48,7 @@ type BaseServiceHandler struct {
 	ca, client *pki.RSACertificate
 }
 
-// Create a new helper handler. For detailed field descriptions, refer to the struct docs.
+// NewHandler creates a new helper handler. For detailed field descriptions, refer to the struct docs.
 func NewHandler(exit ExitHandler, healthCheckValidator HealthCheckValidatorFunction, healthCheckEndpoint string,
 	stopHandler StopHandler, startHandler StartHandler, ca, client *pki.RSACertificate) *BaseServiceHandler {
 	return &BaseServiceHandler{
@@ -61,8 +65,8 @@ func NewHandler(exit ExitHandler, healthCheckValidator HealthCheckValidatorFunct
 	}
 }
 
-// Health check implementation. This function performs a single request against the configured health check endpoint,
-// passing the results to the healthCheckValidator
+// healthCheckFun is the actual health check implementation. This function performs a single request against the
+// configured health check endpoint, passing the results to the healthCheckValidator
 func (handler *BaseServiceHandler) healthCheckFun() error {
 	var httpClient *http.Client
 	if handler.ca != nil {
@@ -92,7 +96,7 @@ func (handler *BaseServiceHandler) healthCheckFun() error {
 		httpClient = &http.Client{
 			Transport: &http.Transport{
 				DisableKeepAlives: true,
-				TLSClientConfig: &tls.Config{},
+				TLSClientConfig:   &tls.Config{},
 			},
 		}
 	}
@@ -119,11 +123,10 @@ func (handler *BaseServiceHandler) healthCheckFun() error {
 	responseBin := responseHTTP.Body
 	defer responseBin.Close()
 
-
 	return handler.healthCheckValidator(&responseBin)
 }
 
-// Stop the service. See interface ServiceHandler.
+// Stop stops the service. See interface ServiceHandler.
 func (handler *BaseServiceHandler) Stop() {
 	handler.stopHandler()
 	if handler.healthCheckRunning {
@@ -132,7 +135,7 @@ func (handler *BaseServiceHandler) Stop() {
 	}
 }
 
-// Enable health checks, see interface ServiceHandler.
+// EnableHealthChecks enables health checks, see interface ServiceHandler.
 func (handler *BaseServiceHandler) EnableHealthChecks(messages chan HealthMessage, forever bool) {
 	if !handler.healthCheckRunning {
 		handler.healthCheckRunning = true
@@ -158,7 +161,7 @@ func (handler *BaseServiceHandler) EnableHealthChecks(messages chan HealthMessag
 	}
 }
 
-// Handle a process exit. Other handlers are expected to call this method on process exit
+// HandleExit handles a process exit. Other handlers are expected to call this method on process exit
 func (handler *BaseServiceHandler) HandleExit(success bool, exitError *exec.ExitError) {
 	handler.retriesLeft--
 	if handler.retriesLeft > 0 {

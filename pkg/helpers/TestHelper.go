@@ -9,8 +9,11 @@ import (
 	"time"
 )
 
+// UUTConstrutor is implemented by all types that use this simplified mechanism to be tested and is used to create a
+// test object with all related resources
 type UUTConstrutor func(ca, server, client *pki.RSACertificate, binary, workdir string, outputHandler handlers.OutputHander, exitHandler handlers.ExitHandler) ([]handlers.ServiceHandler, error)
 
+// StartHandlerForTest starts a given handler for a unit test
 func StartHandlerForTest(name string, constructor UUTConstrutor, exitHandler handlers.ExitHandler, print bool, healthCheckTries int) (handlerList []handlers.ServiceHandler, ca *pki.RSACertificate, client *pki.RSACertificate, server *pki.RSACertificate, err error) {
 	tmpdir, err := ioutil.TempDir("", "microkube-unittests-"+name)
 	if err != nil {

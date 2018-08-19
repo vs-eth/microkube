@@ -2,13 +2,13 @@ package handlers
 
 import "os/exec"
 
-// Function that is called when a process exits.
+// ExitHandler describes a function that is called when a process exits.
 type ExitHandler func(success bool, exitError *exec.ExitError)
 
-// Function that is called whenever a process outputs something
+// OutputHander describes a function that is called whenever a process outputs something
 type OutputHander func(output []byte)
 
-// Structure for health check results from services
+// HealthMessage describes health check results from services
 type HealthMessage struct {
 	// Is this service healthy?
 	IsHealthy bool
@@ -16,15 +16,15 @@ type HealthMessage struct {
 	Error error
 }
 
-// Handle some kind of running service. This interface is implemented by all service handlers below
-// github.com/uubk/microkube/pkg/handlers
+// ServiceHandler handle some kind of running service. This interface is implemented by all service handlers below this
+// package
 type ServiceHandler interface {
-	// Start this service. If no error is returned, you are responsible for stopping it
+	// Start starts this service. If no error is returned, you are responsible for stopping it
 	Start() error
-	// Enable health checks, either one (forever == false) or until the process is stopped.
+	// EnableHealthChecks enable health checks, either for one check (forever == false) or until the process is stopped.
 	// Each health probe will write it's result to the channel provided
 	EnableHealthChecks(messages chan HealthMessage, forever bool)
-	// Stop this service and all associated goroutines (e.g. health checks). If it as already stopped,
+	// Stop stops this service and all associated goroutines (e.g. health checks). If it as already stopped,
 	// this method does nothing.
 	Stop()
 }

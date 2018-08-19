@@ -1,8 +1,0 @@
-# Example: 2018-08-12 14:13:48.437712 I | etcdserver: published {Name:default ClientURLs:[https://localhost:2379]} to cluster cdf818194e3a8c32
-ETCDLogLine =
- Date(string) " " # Line starts with a date...
- Time(string) " " # ...followed by time
- Severity(string)" | " # followed by severity
- Component(string) ": " # followed by the component (etcdserver/etcdmain/raft/...)
- Message(string) "\n" # followed by the log message
-;

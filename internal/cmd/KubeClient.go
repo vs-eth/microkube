@@ -1,33 +1,40 @@
 package cmd
 
 import (
-	"k8s.io/client-go/tools/clientcmd"
-	"os"
-	"k8s.io/client-go/kubernetes"
+	"encoding/json"
+	"github.com/pkg/errors"
+	log "github.com/sirupsen/logrus"
+	av1 "k8s.io/api/core/v1"
+	"k8s.io/api/policy/v1beta1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
-	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/client-go/kubernetes"
+	"k8s.io/client-go/tools/clientcmd"
+	"os"
 	"time"
-	log "github.com/sirupsen/logrus"
-	"github.com/pkg/errors"
-	av1 "k8s.io/api/core/v1"
-	"encoding/json"
-	"k8s.io/api/policy/v1beta1"
 )
 
+// kubeBoolPatch is used to serialize a boolean change to JSON
 type kubeBoolPatch struct {
 	Op    string `json:"op"`
 	Path  string `json:"path"`
-	Value bool `json:"value"`
+	Value bool   `json:"value"`
 }
 
+// KubeClient abstracts operations on a running kubernetes cluster
 type KubeClient struct {
-	client *kubernetes.Clientset
-	node string
+	// Kubernetes client set for interacting with the real API
+	client  *kubernetes.Clientset
+	// Name of the single node
+	node    string
+	// Object reference to the single node
 	nodeRef *av1.Node
 }
 
-func NewKubeClient (kubeconfig string) (*KubeClient, error) {
+// NewKubeClient creates a KubeClient object, configuring it from the provided kubeconfig. The connection will be
+// established in this function
+func NewKubeClient(kubeconfig string) (*KubeClient, error) {
 	obj := KubeClient{
 		node: "",
 	}
@@ -43,6 +50,7 @@ func NewKubeClient (kubeconfig string) (*KubeClient, error) {
 	return &obj, nil
 }
 
+// findNode ensures that there is only one node and updates the internal fields 'node' and 'nodeRef' to reference it
 func (k *KubeClient) findNode() {
 	if k.node != "" {
 		return
@@ -53,7 +61,6 @@ func (k *KubeClient) findNode() {
 			"app":       "microkube",
 			"component": "kube-interface",
 		}).WithError(err).Fatalf("Couldn't list nodes!")
-		os.Exit(-1)
 	}
 	if len(nodeList.Items) < 1 {
 		log.WithFields(log.Fields{
@@ -67,17 +74,18 @@ func (k *KubeClient) findNode() {
 			"component": "kube-interface",
 			"nodeList":  nodeList,
 		}).Fatalf("Too many nodes registered")
-		os.Exit(-1)
 	}
 	k.nodeRef = &nodeList.Items[0]
 	k.node = k.nodeRef.Name
 }
 
+// setNodeUnschedulable sets a node (un)schedulable. The 'firstPass' parameter is required to be set to true by users
+// as it is used internally for recursion
 func (k *KubeClient) setNodeUnschedulable(unschedulable, firstPass bool) {
 	// If we add the taint, try adding the attribute first ;)
 	payload := []kubeBoolPatch{{
-		Op: "replace",
-		Path: "/spec/unschedulable",
+		Op:    "replace",
+		Path:  "/spec/unschedulable",
 		Value: unschedulable,
 	}}
 	if firstPass && unschedulable {
@@ -98,6 +106,7 @@ func (k *KubeClient) setNodeUnschedulable(unschedulable, firstPass bool) {
 	}
 }
 
+// DrainNode drains a node, that is stopping all pods on it
 func (k *KubeClient) DrainNode() {
 	// Force client to refresh node
 	k.node = ""
@@ -121,16 +130,16 @@ func (k *KubeClient) DrainNode() {
 		os.Exit(-1)
 	}
 	var pendingPods []av1.Pod
-	for _,pod := range pods.Items {
+	for _, pod := range pods.Items {
 		// Create eviction for this pod
-		TEN := int64(10)
+		TEN := int64(10) // We require a pointer to this!
 		eviction := v1beta1.Eviction{
 			TypeMeta: v1.TypeMeta{
 				APIVersion: "v1beta1",
-				Kind: "Eviction",
+				Kind:       "Eviction",
 			},
 			ObjectMeta: v1.ObjectMeta{
-				Name: pod.Name,
+				Name:      pod.Name,
 				Namespace: pod.Namespace,
 			},
 			DeleteOptions: &v1.DeleteOptions{
@@ -141,7 +150,7 @@ func (k *KubeClient) DrainNode() {
 			"app":       "microkube",
 			"component": "kube-interface",
 			"namespace": pod.Namespace,
-			"pod": pod.Name,
+			"pod":       pod.Name,
 		}).Info("Evicting pod...")
 		err := k.client.PolicyV1beta1().Evictions(eviction.Namespace).Evict(&eviction)
 		if err != nil {
@@ -149,7 +158,7 @@ func (k *KubeClient) DrainNode() {
 				"app":       "microkube",
 				"component": "kube-interface",
 				"namespace": pod.Namespace,
-				"pod": pod.Name,
+				"pod":       pod.Name,
 			}).WithError(err).Warn("Couldn't evict pod!")
 		} else {
 			pendingPods = append(pendingPods, pod)
@@ -187,17 +196,19 @@ func (k *KubeClient) DrainNode() {
 			}).Info("All pods gone!")
 			return
 		}
-		time.Sleep(2*time.Second)
+		time.Sleep(2 * time.Second)
 	}
 }
 
+// WaitForNode delays execution until a single node exists and is in state 'Ready', removing the unschedulable taint
+// if possible
 func (k *KubeClient) WaitForNode() {
 	for {
 		// Always refresh
 		k.node = ""
 		k.findNode()
 		if k.nodeRef == nil {
-			time.Sleep(1*time.Second)
+			time.Sleep(1 * time.Second)
 			continue
 		}
 		nodeReady := false
@@ -210,14 +221,14 @@ func (k *KubeClient) WaitForNode() {
 		}
 		if !statusChecked {
 			log.WithFields(log.Fields{
-				"app": "microkube",
+				"app":       "microkube",
 				"component": "kube-interface",
 			}).Warn("Node status is unavailable")
 		}
 		if nodeReady {
 			log.WithFields(log.Fields{
-				"app": "microkube",
-				"component": "kube-interface",
+				"app":         "microkube",
+				"component":   "kube-interface",
 				"canSchedule": !k.nodeRef.Spec.Unschedulable,
 			}).Info("Node now ready!")
 
@@ -226,6 +237,6 @@ func (k *KubeClient) WaitForNode() {
 			}
 			return
 		}
-		time.Sleep(1*time.Second)
+		time.Sleep(1 * time.Second)
 	}
 }

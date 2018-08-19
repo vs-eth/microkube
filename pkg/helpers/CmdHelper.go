@@ -1,3 +1,4 @@
+// Package helpers contains utility functions needed to implement handlers
 package helpers
 
 import (
@@ -5,10 +6,12 @@ import (
 	"github.com/uubk/microkube/pkg/handlers"
 	"os"
 	"os/exec"
-	"syscall"
 	"os/signal"
+	"syscall"
+	"path"
 )
 
+// CmdHandler is used to abstract the low-level handling of exec.Command, providing callbacks for events
 type CmdHandler struct {
 	binary string
 	args   []string
@@ -18,6 +21,7 @@ type CmdHandler struct {
 	stderr handlers.OutputHander
 }
 
+// NewCmdHandler creates a CmdHandler for the arguments provided
 func NewCmdHandler(binary string, args []string, exit handlers.ExitHandler, stdout handlers.OutputHander, stderr handlers.OutputHander) *CmdHandler {
 	return &CmdHandler{
 		binary: binary,
@@ -29,12 +33,14 @@ func NewCmdHandler(binary string, args []string, exit handlers.ExitHandler, stdo
 	}
 }
 
+// Stop stops a running process if there is one
 func (handler *CmdHandler) Stop() {
 	if handler.cmd != nil {
 		handler.cmd.Process.Kill()
 	}
 }
 
+// Start starts a new process and sets up all related handlers
 func (handler *CmdHandler) Start() error {
 	handler.cmd = exec.Command(handler.binary, handler.args...)
 	// Detach from process group
@@ -120,4 +126,36 @@ func (handler *CmdHandler) Start() error {
 		}
 	}()
 	return nil
+}
+
+// FindBinary tries to find binary 'name'. The following locations are checked in this order:
+//  - cwd/../../../third_party/name
+//  - cwd/../../third_party/name
+//  - cwd/../third_party/name
+//  - cwd/third_party/name
+//  - 'appdir'/third_party/name
+//  - 'extraDir'/name
+func FindBinary(name string, appDir, extraDir string) (string, error) {
+	cwd, err := os.Getwd()
+	if err != nil {
+		return "", errors.Wrap(err, "couldn't read cwd")
+	}
+
+	candidates := []string {
+		path.Join(path.Dir(path.Dir(path.Dir(cwd))), "third_party"),
+		path.Join(path.Dir(path.Dir(cwd)), "third_party"),
+		path.Join(path.Dir(cwd), "third_party"),
+		path.Join(cwd, "third_party"),
+		path.Join(appDir, "third_party"),
+		extraDir,
+	}
+	for _, candidate := range candidates {
+		test := path.Join(candidate, name)
+		_, err = os.Stat(test)
+		if err == nil {
+			return test, nil
+		}
+	}
+
+	return "", errors.New("Couldn't find file")
 }

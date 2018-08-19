@@ -1,30 +1,36 @@
-//go:generate ldetool generate --package kube --go-string logs.lde
+//go:generate ldetool generate --package log --go-string logs.lde
 
-package kube
+package log
 
 import (
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
-	"github.com/uubk/microkube/internal/log"
 	"regexp"
 	"strings"
 )
 
+// KubeLogParser handles kubernetes-like log output
 type KubeLogParser struct {
-	log.BaseLogParser
+	// Base ref
+	BaseLogParser
+
+	// Application this belongs to
 	app            string
+	// Regex used to unindent logs
 	regexpInstance *regexp.Regexp
 }
 
+// NewKubeLogParser creates a KubeLogParser for the application named by 'app'
 func NewKubeLogParser(app string) *KubeLogParser {
 	obj := KubeLogParser{
 		app:            app,
 		regexpInstance: regexp.MustCompile("[ ]+"),
 	}
-	obj.BaseLogParser = *log.NewBaseLogParser(obj.handleLine)
+	obj.BaseLogParser = *NewBaseLogParser(obj.handleLine)
 	return &obj
 }
 
+// handleLine handles a single line of log output
 func (h *KubeLogParser) handleLine(lineStr string) error {
 	if strings.HasPrefix(lineStr, "[restful]") {
 		// Ugh. [restful] means that this line is actually a different format

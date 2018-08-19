@@ -1,4 +1,4 @@
-package kube_proxy
+package kube
 
 import (
 	"github.com/pkg/errors"
@@ -6,13 +6,15 @@ import (
 	"text/template"
 )
 
-type KubeSchedulerConfigData struct {
+// kubeProxyConfigData contains data used when templating a kube proxy config. For internal use only.
+type kubeProxyConfigData struct {
 	Kubeconfig  string
 	ClusterCIDR string
 }
 
+// CreateClientKubeconfig creates a scheduler config with most things hardcoded and stores it in 'path'
 func CreateKubeProxyConfig(path, clusterCIDR, kubeconfig string) error {
-	data := KubeSchedulerConfigData{
+	data := kubeProxyConfigData{
 		Kubeconfig:  kubeconfig,
 		ClusterCIDR: clusterCIDR,
 	}
@@ -53,7 +55,7 @@ portRange: ""
 resourceContainer: /kube-proxy
 udpIdleTimeout: 250ms
 `
-	// clusterDNS, clusterDomain
+	// TODO(uubk): clusterDNS, clusterDomain
 	tmpl, err := template.New("KubeScheduler").Parse(tmplStr)
 	if err != nil {
 		return errors.Wrap(err, "template init failed")

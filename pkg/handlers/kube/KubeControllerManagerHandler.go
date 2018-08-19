@@ -1,9 +1,8 @@
-package controller_manager
+package kube
 
 import (
 	"github.com/pkg/errors"
 	"github.com/uubk/microkube/pkg/handlers"
-	"github.com/uubk/microkube/pkg/handlers/kube-apiserver"
 	"github.com/uubk/microkube/pkg/helpers"
 	"github.com/uubk/microkube/pkg/pki"
 	"io"
@@ -12,7 +11,9 @@ import (
 	"strings"
 )
 
+// ControllerManagerHandler handles invocation of the kubernetes controller/manager binary
 type ControllerManagerHandler struct {
+	// Base ref
 	handlers.BaseServiceHandler
 	cmd *helpers.CmdHandler
 
@@ -38,6 +39,7 @@ type ControllerManagerHandler struct {
 	out handlers.OutputHander
 }
 
+// NewControllerManagerHandler creates a ControllerManagerHandler from the arguments provided
 func NewControllerManagerHandler(binary, kubeconfig, listenAddress string, server, client, ca, clusterCA, svcAcctCert *pki.RSACertificate, podRange string, out handlers.OutputHander, exit handlers.ExitHandler) *ControllerManagerHandler {
 	obj := &ControllerManagerHandler{
 		binary:            binary,
@@ -58,12 +60,14 @@ func NewControllerManagerHandler(binary, kubeconfig, listenAddress string, serve
 	return obj
 }
 
+// Stop the child process
 func (handler *ControllerManagerHandler) stop() {
 	if handler.cmd != nil {
 		handler.cmd.Stop()
 	}
 }
 
+// See interface docs
 func (handler *ControllerManagerHandler) Start() error {
 	handler.cmd = helpers.NewCmdHandler(handler.binary, []string{
 		"kube-controller-manager",
@@ -93,6 +97,7 @@ func (handler *ControllerManagerHandler) Start() error {
 	return handler.cmd.Start()
 }
 
+// Handle result of a health probe
 func (handler *ControllerManagerHandler) healthCheckFun(responseBin *io.ReadCloser) error {
 	str, err := ioutil.ReadAll(*responseBin)
 	if err != nil {
@@ -107,7 +112,7 @@ func (handler *ControllerManagerHandler) healthCheckFun(responseBin *io.ReadClos
 // This function is supposed to be only used for testing
 func KubeControllerManagerConstructor(ca, server, client *pki.RSACertificate, binary, workdir string, outputHandler handlers.OutputHander, exitHandler handlers.ExitHandler) ([]handlers.ServiceHandler, error) {
 	// Start apiserver (and etcd)
-	handlerList, kubeCA, kubeClient, kubeServer, err := helpers.StartHandlerForTest("kube-apiserver", kube_apiserver.KubeApiServerConstructor, exitHandler, false, 30)
+	handlerList, kubeCA, kubeClient, kubeServer, err := helpers.StartHandlerForTest("kube-apiserver", KubeApiServerConstructor, exitHandler, false, 30)
 	if err != nil {
 		return handlerList, errors.Wrap(err, "kube-apiserver startup prereq failed")
 	}
@@ -117,7 +122,7 @@ func KubeControllerManagerConstructor(ca, server, client *pki.RSACertificate, bi
 		errors.Wrap(err, "tempdir creation failed")
 	}
 	kubeconfig := path.Join(tmpdir, "kubeconfig")
-	err = kube_apiserver.CreateClientKubeconfig(ca, client, kubeconfig, "127.0.0.1")
+	err = CreateClientKubeconfig(ca, client, kubeconfig, "127.0.0.1")
 	if err != nil {
 		return handlerList, errors.Wrap(err, "kubeconfig creation failed")
 	}

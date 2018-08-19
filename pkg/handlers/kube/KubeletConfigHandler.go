@@ -1,4 +1,4 @@
-package kubelet
+package kube
 
 import (
 	"github.com/pkg/errors"
@@ -7,19 +7,21 @@ import (
 	"os"
 )
 
-type KubeletConfigData struct {
+// kubeletConfigData contains data used when templating a kubelet config. For internal use only.
+type kubeletConfigData struct {
 	CAFile        string
-	CertFile string
-	KeyFile string
+	CertFile      string
+	KeyFile       string
 	StaticPodPath string
 }
 
+// CreateKubeletConfig creates a kubelet config from the arguments provided and stores it in 'path'
 func CreateKubeletConfig(path string, server, ca *pki.RSACertificate, staticPodPath string) error {
-	data := KubeletConfigData{
+	data := kubeletConfigData{
 		CAFile:        ca.CertPath,
 		StaticPodPath: staticPodPath,
-		CertFile: server.CertPath,
-		KeyFile: server.KeyPath,
+		CertFile:      server.CertPath,
+		KeyFile:       server.KeyPath,
 	}
 	tmplStr := `kind: KubeletConfiguration
 apiVersion: kubelet.config.k8s.io/v1beta1
@@ -37,7 +39,6 @@ kubeletCgroups: "/systemd/system.slice"
 tlsCertFile: {{ .CertFile }}
 tlsPrivateKeyFile: {{ .KeyFile }}
 `
-	// clusterDNS, clusterDomain
 	tmpl, err := template.New("Kubelet").Parse(tmplStr)
 	if err != nil {
 		return errors.Wrap(err, "template init failed")

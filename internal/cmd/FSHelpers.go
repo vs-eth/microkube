@@ -1,3 +1,4 @@
+// Package cmd (internal) provides functions that are needed to implement the commands
 package cmd
 
 import (
@@ -6,6 +7,7 @@ import (
 	"path"
 )
 
+// EnsureDir ensures that root/subdirectory exists, is a directory and has permissions 'permissions'
 func EnsureDir(root, subdirectory string, permissions os.FileMode) error {
 	dir := path.Join(root, subdirectory)
 

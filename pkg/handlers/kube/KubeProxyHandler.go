@@ -1,21 +1,23 @@
-package kube_proxy
+package kube
 
 import (
+	"encoding/json"
+	"github.com/pkg/errors"
 	"github.com/uubk/microkube/pkg/handlers"
 	"github.com/uubk/microkube/pkg/helpers"
 	"io"
 	"path"
-	"encoding/json"
-	"github.com/pkg/errors"
 )
 
+// KubeProxyHandler handles invocation of the kubernetes proxy
 type KubeProxyHandler struct {
+	// Base ref
 	handlers.BaseServiceHandler
+	// command exec helper
 	cmd *helpers.CmdHandler
 
 	// Path to kube proxy binary
 	binary string
-
 	// Path to kubeconfig
 	kubeconfig string
 	// Path to proxy config (!= kubeconfig, replacement for commandline flags)
@@ -26,6 +28,7 @@ type KubeProxyHandler struct {
 	out handlers.OutputHander
 }
 
+// NewKubeProxyHandler creates a KubeProxyHandler from the arguments provided
 func NewKubeProxyHandler(binary, root, kubeconfig, cidr string, out handlers.OutputHander, exit handlers.ExitHandler) (*KubeProxyHandler, error) {
 	obj := &KubeProxyHandler{
 		binary:     binary,
@@ -45,16 +48,16 @@ func NewKubeProxyHandler(binary, root, kubeconfig, cidr string, out handlers.Out
 	return obj, nil
 }
 
+// Stop the child process
 func (handler *KubeProxyHandler) stop() {
 	if handler.cmd != nil {
 		handler.cmd.Stop()
 	}
 }
 
+// See interface docs
 func (handler *KubeProxyHandler) Start() error {
-	// TODO(uubk)/XXX: kube-proxy unfortunately needs root privileges due to iptables invocations. Find a way around this or
-	// use a sensible way to gain root. This only works when sudo can be done passwordless...
-	handler.cmd = helpers.NewCmdHandler("sudo", []string{
+	handler.cmd = helpers.NewCmdHandler("pkexec", []string{
 		handler.binary,
 		"kube-proxy",
 		"--config",
@@ -63,6 +66,7 @@ func (handler *KubeProxyHandler) Start() error {
 	return handler.cmd.Start()
 }
 
+// Handle result of a health probe
 func (handler *KubeProxyHandler) healthCheckFun(responseBin *io.ReadCloser) error {
 	type KubeProxyStatus struct {
 		LastUpdated string `json:"lastUpdated"`

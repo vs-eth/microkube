@@ -1,3 +1,4 @@
+// Package etcd contains the handler for etcd
 package etcd
 
 import (
@@ -12,7 +13,9 @@ import (
 
 // Take care of running a single etcd listening on (hardcoded) localhost.
 type EtcdHandler struct {
+	// Base ref
 	handlers.BaseServiceHandler
+	// command exec helper
 	cmd *helpers.CmdHandler
 
 	// Where should etcd's data be stored?
@@ -33,6 +36,7 @@ type EtcdHandler struct {
 	out handlers.OutputHander
 }
 
+// NewEtcdHandler creates an EtcdHandler from the arguments provided
 func NewEtcdHandler(datadir, binary string, server, client, ca *pki.RSACertificate, out handlers.OutputHander, exit handlers.ExitHandler) *EtcdHandler {
 	obj := &EtcdHandler{
 		datadir:    datadir,
@@ -50,6 +54,7 @@ func NewEtcdHandler(datadir, binary string, server, client, ca *pki.RSACertifica
 	return obj
 }
 
+// See interface docs
 func (handler *EtcdHandler) Start() error {
 	handler.cmd = helpers.NewCmdHandler(handler.binary, []string{
 		"--data-dir",
@@ -82,12 +87,14 @@ func (handler *EtcdHandler) Start() error {
 	return handler.cmd.Start()
 }
 
+// Stop the child process
 func (handler *EtcdHandler) stop() {
 	if handler.cmd != nil {
 		handler.cmd.Stop()
 	}
 }
 
+// Handle result of a health probe
 func (handler *EtcdHandler) healthCheckFun(responseBin *io.ReadCloser) error {
 	type EtcdStatus struct {
 		Health string `json:"health"`

@@ -1,4 +1,4 @@
-package kubelet
+package kube
 
 import (
 	"errors"
@@ -12,7 +12,7 @@ import (
 	"strings"
 )
 
-// Handle a kubelet instance, that is the thing that actually schedules nodes
+// Handle a kubelet instance, that is the thing that actually schedules pods on nodes, interacting with docker
 type KubeletHandler struct {
 	handlers.BaseServiceHandler
 	cmd *helpers.CmdHandler
@@ -38,6 +38,7 @@ type KubeletHandler struct {
 	out handlers.OutputHander
 }
 
+// NewKubeletHandler creates a KubeletHandler from the arguments provided
 func NewKubeletHandler(binary, root, kubeconfig, listenAddress string, server, client, ca *pki.RSACertificate, out handlers.OutputHander, exit handlers.ExitHandler) (*KubeletHandler, error) {
 	obj := &KubeletHandler{
 		binary:         binary,
@@ -64,16 +65,16 @@ func NewKubeletHandler(binary, root, kubeconfig, listenAddress string, server, c
 	return obj, nil
 }
 
+// Stop the child process
 func (handler *KubeletHandler) stop() {
 	if handler.cmd != nil {
 		handler.cmd.Stop()
 	}
 }
 
+// See interface docs
 func (handler *KubeletHandler) Start() error {
-	// TODO(uubk)/XXX: Kubelet unfortunately needs root privileges due to iptables invocations. Find a way around this or
-	// use a sensible way to gain root. This only works when sudo can be done passwordless...
-	handler.cmd = helpers.NewCmdHandler("sudo", []string{
+	handler.cmd = helpers.NewCmdHandler("pkexec", []string{
 		handler.binary,
 		"kubelet",
 		"--config",
@@ -98,6 +99,7 @@ func (handler *KubeletHandler) Start() error {
 	return handler.cmd.Start()
 }
 
+// Handle result of a health probe
 func (handler *KubeletHandler) healthCheckFun(responseBin *io.ReadCloser) error {
 	str, err := ioutil.ReadAll(*responseBin)
 	if err != nil {

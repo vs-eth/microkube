@@ -10,10 +10,10 @@ import (
 )
 
 // Ensure that a full PKI for 'name' exists in 'root', that is:
-// * A CA certificate with name 'name CA' in ca.pem and ca.key
-// * A server certificate with SANs 'ip' and name 'name Server' in server.pem and server.key
-// * A client certificate with name 'name Client' in 'client.pem' and 'client.key', optionally containing
-//   'system:masters' as O when 'isKubeCA' is set to true
+//  - A CA certificate with name 'name CA' in ca.pem and ca.key
+//  - A server certificate with SANs 'ip' and name 'name Server' in server.pem and server.key
+//  - A client certificate with name 'name Client' in 'client.pem' and 'client.key', optionally containing
+//    'system:masters' as O when 'isKubeCA' is set to true
 func EnsureFullPKI(root, name string, isKubeCA, isETCDCA bool, ip []string) (ca *pki.RSACertificate, server *pki.RSACertificate, client *pki.RSACertificate, err error) {
 	caFile := path.Join(root, "ca.pem")
 	_, err = os.Stat(caFile)
@@ -66,7 +66,7 @@ func EnsureFullPKI(root, name string, isKubeCA, isETCDCA bool, ip []string) (ca 
 }
 
 // Ensure that a full CA for 'name' exists in 'root', that is:
-// * A CA certificate with name 'name CA' in ca.pem and ca.key
+//  - A CA certificate with name 'name CA' in ca.pem and ca.key
 func EnsureCA(root, name string) (ca *pki.RSACertificate, err error) {
 	caFile := path.Join(root, "ca.pem")
 	_, err = os.Stat(caFile)
@@ -91,8 +91,7 @@ func EnsureCA(root, name string) (ca *pki.RSACertificate, err error) {
 }
 
 // Ensure that a signing cert for 'name' exists in 'root', that is:
-// * A CA-like certificate (self-signed) with name 'name CA' in cert.pem and cert.key
-// As opposed to 'normal' CA certificates, this certificate can be used to
+//  - A CA-like certificate (self-signed) with name 'name CA' in cert.pem and cert.key
 func EnsureSigningCert(root, name string) (ca *pki.RSACertificate, err error) {
 	caFile := path.Join(root, "cert.pem")
 	_, err = os.Stat(caFile)

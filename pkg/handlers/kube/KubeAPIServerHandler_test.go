@@ -1,4 +1,4 @@
-package kube_apiserver
+package kube
 
 import (
 	"bufio"
@@ -12,6 +12,7 @@ import (
 	"testing"
 )
 
+// TestAPIServerStartup tests normal kubernetes apiserver startup
 func TestAPIServerStartup(t *testing.T) {
 	done := false
 	exitHandler := func(success bool, exitError *exec.ExitError) {
@@ -30,6 +31,7 @@ func TestAPIServerStartup(t *testing.T) {
 	}
 }
 
+// TestAPIServerStartup tests normal kubernetes apiserver startup, using kubectl to connect to it afterwards
 func TestAPIServerKubeconfig(t *testing.T) {
 	done := false
 	exitHandler := func(success bool, exitError *exec.ExitError) {
@@ -62,9 +64,9 @@ func TestAPIServerKubeconfig(t *testing.T) {
 		return
 	}
 
-	bin, err := helpers.FindBinary("kubectl", "")
+	bin, err := helpers.FindBinary("hyperkube", "", "")
 	if err != nil {
-		t.Error("kubectl not found", err)
+		t.Error("hyperkube not found", err)
 		return
 	}
 
@@ -79,6 +81,7 @@ func TestAPIServerKubeconfig(t *testing.T) {
 		exitWaiter <- success
 	}
 	handler := helpers.NewCmdHandler(bin, []string{
+		"kubectl",
 		"--kubeconfig",
 		kubeconfig,
 		"version",

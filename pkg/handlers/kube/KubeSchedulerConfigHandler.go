@@ -1,4 +1,4 @@
-package kube_scheduler
+package kube
 
 import (
 	"github.com/pkg/errors"
@@ -6,12 +6,15 @@ import (
 	"text/template"
 )
 
-type KubeSchedulerConfigData struct {
+
+// kubeSchedulerConfigData contains data used when templating a kube scheduler config. For internal use only.
+type kubeSchedulerConfigData struct {
 	Kubeconfig string
 }
 
+// CreateKubeSchedulerConfig creates a proxy config with most things hardcoded and stores it in 'path'
 func CreateKubeSchedulerConfig(path, kubeconfig string) error {
-	data := KubeSchedulerConfigData{
+	data := kubeSchedulerConfigData{
 		Kubeconfig: kubeconfig,
 	}
 	tmplStr := `algorithmSource:
@@ -41,7 +44,6 @@ leaderElection:
 metricsBindAddress: 127.0.0.1:10251
 schedulerName: default-scheduler
 `
-	// clusterDNS, clusterDomain
 	tmpl, err := template.New("KubeScheduler").Parse(tmplStr)
 	if err != nil {
 		return errors.Wrap(err, "template init failed")

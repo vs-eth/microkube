@@ -1,4 +1,4 @@
-package controller_manager
+package kube
 
 import (
 	"github.com/uubk/microkube/pkg/helpers"
@@ -6,6 +6,7 @@ import (
 	"testing"
 )
 
+// Test Controller/Manager startup
 func TestControllerManagerStartup(t *testing.T) {
 	done := false
 	exitHandler := func(success bool, exitError *exec.ExitError) {

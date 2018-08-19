@@ -1,4 +1,4 @@
-package kube_scheduler
+package kube
 
 import (
 	"errors"
@@ -10,6 +10,7 @@ import (
 	"strings"
 )
 
+// KubeSchedulerHandler handles invocation of the kubernetes scheduler binary
 type KubeSchedulerHandler struct {
 	handlers.BaseServiceHandler
 	cmd *helpers.CmdHandler
@@ -25,6 +26,7 @@ type KubeSchedulerHandler struct {
 	out handlers.OutputHander
 }
 
+// NewKubeSchedulerHandler creates a KubeSchedulerHandler from the arguments provided
 func NewKubeSchedulerHandler(binary, root, kubeconfig string, out handlers.OutputHander, exit handlers.ExitHandler) (*KubeSchedulerHandler, error) {
 	obj := &KubeSchedulerHandler{
 		binary:     binary,
@@ -44,12 +46,14 @@ func NewKubeSchedulerHandler(binary, root, kubeconfig string, out handlers.Outpu
 	return obj, nil
 }
 
+// Stop the child process
 func (handler *KubeSchedulerHandler) stop() {
 	if handler.cmd != nil {
 		handler.cmd.Stop()
 	}
 }
 
+// See interface docs
 func (handler *KubeSchedulerHandler) Start() error {
 	handler.cmd = helpers.NewCmdHandler(handler.binary, []string{
 		"kube-scheduler",
@@ -59,6 +63,7 @@ func (handler *KubeSchedulerHandler) Start() error {
 	return handler.cmd.Start()
 }
 
+// Handle result of a health probe
 func (handler *KubeSchedulerHandler) healthCheckFun(responseBin *io.ReadCloser) error {
 	str, err := ioutil.ReadAll(*responseBin)
 	if err != nil {

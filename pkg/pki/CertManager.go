@@ -14,20 +14,30 @@ import (
 	"time"
 )
 
+// CertManager manages a x509 PKI with RSA certificates
 type CertManager struct {
+	// Where to store certificates
 	workdir  string
+	// Size of the keys to create
 	keysize  int
+	// How long should keys be valid
 	validity time.Duration
 }
 
 type RSACertificate struct {
+	// Certificate as parsed golang struct
 	cert     *x509.Certificate
+	// Private key as parsed golang struct
 	key      *rsa.PrivateKey
+	// Public key as parsed golang struct
 	pubkey   *rsa.PublicKey
+	// CertPath contains the full path to a PEM-encoded representation of this certificate
 	CertPath string
+	// CertPath contains the full path to a PEM-encoded representation of this certificate's private key
 	KeyPath  string
 }
 
+// NewManager creates a CertManager that stores certificates in 'workdir'
 func NewManager(workdir string) *CertManager {
 	return &CertManager{
 		workdir:  workdir,
@@ -36,6 +46,7 @@ func NewManager(workdir string) *CertManager {
 	}
 }
 
+// writeCertToFiles writes the given certificate to workdir/name.pem and workdir/name.key
 func (manager *CertManager) writeCertToFiles(name string, privateKey *rsa.PrivateKey, cert *[]byte, certTmpl *x509.Certificate) (*RSACertificate, error) {
 	// Write two PEM files
 	// Key
@@ -70,6 +81,7 @@ func (manager *CertManager) writeCertToFiles(name string, privateKey *rsa.Privat
 	}, nil
 }
 
+// NewSelfSignedCACert creates a new self-signed CA certificate
 func (manager *CertManager) NewSelfSignedCACert(name string, x509Name pkix.Name, serial int64) (*RSACertificate, error) {
 	// Generate cert
 	privateKey, err := rsa.GenerateKey(rand.Reader, manager.keysize)
@@ -93,6 +105,7 @@ func (manager *CertManager) NewSelfSignedCACert(name string, x509Name pkix.Name,
 	return manager.writeCertToFiles(name, privateKey, &cert, &certTmpl)
 }
 
+// NewSelfSignedCert creates a new self-signed certificate
 func (manager *CertManager) NewSelfSignedCert(name string, x509Name pkix.Name, serial int64) (*RSACertificate, error) {
 	// Generate cert
 	privateKey, err := rsa.GenerateKey(rand.Reader, manager.keysize)
@@ -116,6 +129,7 @@ func (manager *CertManager) NewSelfSignedCert(name string, x509Name pkix.Name, s
 	return manager.writeCertToFiles(name, privateKey, &cert, &certTmpl)
 }
 
+// NewCert creates a new certificate signed by 'ca'
 func (manager *CertManager) NewCert(name string, x509Name pkix.Name, serial int64, isServer bool, isClient bool, sans []string, ca *RSACertificate) (*RSACertificate, error) {
 	// Generate cert
 	privateKey, err := rsa.GenerateKey(rand.Reader, manager.keysize)

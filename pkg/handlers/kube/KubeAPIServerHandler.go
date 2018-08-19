@@ -1,4 +1,5 @@
-package kube_apiserver
+// Package kube contains handlers for all kubernetes related services
+package kube
 
 import (
 	"github.com/pkg/errors"
@@ -11,8 +12,11 @@ import (
 	"strings"
 )
 
+// ControllerManagerHandler handles invocation of the kubernetes apiserver
 type KubeAPIServerHandler struct {
+	// Base ref
 	handlers.BaseServiceHandler
+	// command exec helper
 	cmd *helpers.CmdHandler
 
 	// Kube-apiserver binary location
@@ -45,6 +49,7 @@ type KubeAPIServerHandler struct {
 	serviceNet string
 }
 
+// NewKubeAPIServerHandler creates a KubeAPIServerHandler from the arguments provided
 func NewKubeAPIServerHandler(binary string, kubeServer, kubeClient, kubeCA, kubeSvc,
 	etcdClient, etcdCA *pki.RSACertificate, out handlers.OutputHander, exit handlers.ExitHandler, listenAddress string, serviceNet string) *KubeAPIServerHandler {
 	obj := &KubeAPIServerHandler{
@@ -61,20 +66,22 @@ func NewKubeAPIServerHandler(binary string, kubeServer, kubeClient, kubeCA, kube
 		out:            out,
 		listenAddress:  listenAddress,
 		serviceNet:     serviceNet,
-		svcCert: kubeSvc.CertPath,
-		svcKey: kubeSvc.KeyPath,
+		svcCert:        kubeSvc.CertPath,
+		svcKey:         kubeSvc.KeyPath,
 	}
 	obj.BaseServiceHandler = *handlers.NewHandler(exit, obj.healthCheckFun, "https://"+listenAddress+":7443/healthz",
 		obj.stop, obj.Start, kubeCA, kubeClient)
 	return obj
 }
 
+// Stop the child process
 func (handler *KubeAPIServerHandler) stop() {
 	if handler.cmd != nil {
 		handler.cmd.Stop()
 	}
 }
 
+// See interface docs
 func (handler *KubeAPIServerHandler) Start() error {
 	handler.cmd = helpers.NewCmdHandler(handler.binary, []string{
 		"kube-apiserver",
@@ -121,6 +128,7 @@ func (handler *KubeAPIServerHandler) Start() error {
 	return handler.cmd.Start()
 }
 
+// Handle result of a health probe
 func (handler *KubeAPIServerHandler) healthCheckFun(responseBin *io.ReadCloser) error {
 	str, err := ioutil.ReadAll(*responseBin)
 	if err != nil {
