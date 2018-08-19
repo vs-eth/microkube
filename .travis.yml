@@ -22,6 +22,10 @@ before_install:
 - rm -Rf kubernetes kubernetes-server-linux-amd64.tar.gz
 - rm -Rf etcd-v3.3.9-linux-amd64 etcd-v3.3.9-linux-amd64.tar.gz
 
+
+script:
+- go test -coverprofile=coverage.txt -covermode=atomic -v ./...
+
 install:
 - glide i
 

@@ -174,6 +174,7 @@ func TestSelfSignedCertProperties(t *testing.T) {
 	// Conserve entropy during unit tests (NEVER DO THIS IN DEV OR PROD)
 	// and generate extremely short certificates
 	manager.keysize = 768
+	manager.UutMode()
 	cert, err := manager.NewSelfSignedCACert("Testcert", pkix.Name{
 		CommonName: "Testcert",
 	}, 123)
@@ -193,6 +194,7 @@ func TestSelfSignedCertMatch(t *testing.T) {
 	// Conserve entropy during unit tests (NEVER DO THIS IN DEV OR PROD)
 	// and generate extremely short certificates
 	manager.keysize = 768
+	manager.UutMode()
 	cert, err := manager.NewSelfSignedCACert("Testcert", pkix.Name{
 		CommonName: "Testcert",
 	}, 123)
@@ -211,6 +213,7 @@ func TestCASignedClientCert(t *testing.T) {
 	// Conserve entropy during unit tests (NEVER DO THIS IN DEV OR PROD)
 	// and generate extremely short certificates
 	manager.keysize = 768
+	manager.UutMode()
 	caCert, err := manager.NewSelfSignedCACert("Testcert", pkix.Name{
 		CommonName: "Testcert",
 	}, 123)
@@ -239,7 +242,7 @@ func TestCASignedServerCert(t *testing.T) {
 	manager := NewManager(tempDir)
 	// Conserve entropy during unit tests (NEVER DO THIS IN DEV OR PROD)
 	// and generate extremely short certificates
-	manager.keysize = 768
+	manager.UutMode()
 	caCert, err := manager.NewSelfSignedCACert("Testcert", pkix.Name{
 		CommonName: "Testcert",
 	}, 123)

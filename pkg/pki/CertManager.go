@@ -25,10 +25,12 @@ import (
 	"encoding/pem"
 	"github.com/pkg/errors"
 	"math/big"
+	insecure_rand "math/rand"
 	"net"
 	"os"
 	"path"
 	"time"
+	"io"
 )
 
 // CertManager manages a x509 PKI with RSA certificates
@@ -39,6 +41,8 @@ type CertManager struct {
 	keysize int
 	// How long should keys be valid
 	validity time.Duration
+	// Where to get randomness from
+	randReader io.Reader
 }
 
 // RSACertificate holds information about an X509 certificate
@@ -61,7 +65,15 @@ func NewManager(workdir string) *CertManager {
 		workdir:  workdir,
 		keysize:  2048,
 		validity: time.Hour * 24 * 365,
+		randReader: rand.Reader,
 	}
+}
+
+// UutMode makes the CertManager use WEAK RANDOM NUMBERS and SHORT KEYS This is so that unittests work in low-entropy
+// environments. Do not use outside of unit tests!
+func (manager *CertManager) UutMode() {
+	manager.keysize = 768
+	manager.randReader = insecure_rand.New(insecure_rand.NewSource(time.Now().UnixNano()))
 }
 
 // writeCertToFiles writes the given certificate to workdir/name.pem and workdir/name.key
@@ -102,7 +114,7 @@ func (manager *CertManager) writeCertToFiles(name string, privateKey *rsa.Privat
 // NewSelfSignedCACert creates a new self-signed CA certificate
 func (manager *CertManager) NewSelfSignedCACert(name string, x509Name pkix.Name, serial int64) (*RSACertificate, error) {
 	// Generate cert
-	privateKey, err := rsa.GenerateKey(rand.Reader, manager.keysize)
+	privateKey, err := rsa.GenerateKey(manager.randReader, manager.keysize)
 	if err != nil {
 		return nil, errors.Wrap(err, "key creation failed")
 	}
@@ -115,7 +127,7 @@ func (manager *CertManager) NewSelfSignedCACert(name string, x509Name pkix.Name,
 		BasicConstraintsValid: true,
 		IsCA: true,
 	}
-	cert, err := x509.CreateCertificate(rand.Reader, &certTmpl, &certTmpl, &privateKey.PublicKey, privateKey)
+	cert, err := x509.CreateCertificate(manager.randReader, &certTmpl, &certTmpl, &privateKey.PublicKey, privateKey)
 	if err != nil {
 		return nil, errors.Wrap(err, "certificate template creation failed")
 	}
@@ -126,7 +138,7 @@ func (manager *CertManager) NewSelfSignedCACert(name string, x509Name pkix.Name,
 // NewSelfSignedCert creates a new self-signed certificate
 func (manager *CertManager) NewSelfSignedCert(name string, x509Name pkix.Name, serial int64) (*RSACertificate, error) {
 	// Generate cert
-	privateKey, err := rsa.GenerateKey(rand.Reader, manager.keysize)
+	privateKey, err := rsa.GenerateKey(manager.randReader, manager.keysize)
 	if err != nil {
 		return nil, errors.Wrap(err, "key creation failed")
 	}
@@ -139,7 +151,7 @@ func (manager *CertManager) NewSelfSignedCert(name string, x509Name pkix.Name, s
 		BasicConstraintsValid: true,
 		IsCA: true,
 	}
-	cert, err := x509.CreateCertificate(rand.Reader, &certTmpl, &certTmpl, &privateKey.PublicKey, privateKey)
+	cert, err := x509.CreateCertificate(manager.randReader, &certTmpl, &certTmpl, &privateKey.PublicKey, privateKey)
 	if err != nil {
 		return nil, errors.Wrap(err, "certificate template creation failed")
 	}
@@ -150,7 +162,7 @@ func (manager *CertManager) NewSelfSignedCert(name string, x509Name pkix.Name, s
 // NewCert creates a new certificate signed by 'ca'
 func (manager *CertManager) NewCert(name string, x509Name pkix.Name, serial int64, isServer bool, isClient bool, sans []string, ca *RSACertificate) (*RSACertificate, error) {
 	// Generate cert
-	privateKey, err := rsa.GenerateKey(rand.Reader, manager.keysize)
+	privateKey, err := rsa.GenerateKey(manager.randReader, manager.keysize)
 	if err != nil {
 		return nil, errors.Wrap(err, "key creation failed")
 	}
@@ -180,7 +192,7 @@ func (manager *CertManager) NewCert(name string, x509Name pkix.Name, serial int6
 		certTmpl.ExtKeyUsage = append(certTmpl.ExtKeyUsage, x509.ExtKeyUsageClientAuth)
 	}
 
-	cert, err := x509.CreateCertificate(rand.Reader, &certTmpl, ca.cert, &privateKey.PublicKey, ca.key)
+	cert, err := x509.CreateCertificate(manager.randReader, &certTmpl, ca.cert, &privateKey.PublicKey, ca.key)
 	if err != nil {
 		return nil, errors.Wrap(err, "certificate template creation failed")
 	}

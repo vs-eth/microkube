@@ -23,10 +23,11 @@ import (
 	"os"
 )
 
-// CertHelper generates a CA with a server and a client certificate for unit testing
+// CertHelper generates a CA with a server and a client certificate for _unit testing only_ (weak certificates)
 func CertHelper(pkidir, pkiname string) (*pki.RSACertificate, *pki.RSACertificate, *pki.RSACertificate, error) {
-	certmgr := pki.NewManager(pkidir)
-	ca, err := certmgr.NewSelfSignedCACert(pkiname+"-CA", pkix.Name{
+	certMgr := pki.NewManager(pkidir)
+	certMgr.UutMode()
+	ca, err := certMgr.NewSelfSignedCACert(pkiname+"-CA", pkix.Name{
 		CommonName: pkiname + "-CA",
 	}, 1)
 	if err != nil {
@@ -38,7 +39,7 @@ func CertHelper(pkidir, pkiname string) (*pki.RSACertificate, *pki.RSACertificat
 		return nil, nil, nil, errors.Wrap(err, "Couldn't read hostname")
 	}
 
-	server, err := certmgr.NewCert(pkiname+"-Server", pkix.Name{
+	server, err := certMgr.NewCert(pkiname+"-Server", pkix.Name{
 		CommonName: pkiname + "-Server",
 	}, 2, true, false, []string{
 		"127.0.0.1",
@@ -49,7 +50,7 @@ func CertHelper(pkidir, pkiname string) (*pki.RSACertificate, *pki.RSACertificat
 	if err != nil {
 		return nil, nil, nil, errors.Wrap(err, "server certificate creation failed")
 	}
-	client, err := certmgr.NewCert(pkiname+"-Client", pkix.Name{
+	client, err := certMgr.NewCert(pkiname+"-Client", pkix.Name{
 		CommonName: pkiname + "-Client",
 	}, 3, false, true, nil, ca)
 	if err != nil {
