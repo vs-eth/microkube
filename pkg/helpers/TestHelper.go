@@ -48,7 +48,7 @@ func StartHandlerForTest(name, binary string, constructor UUTConstrutor, exitHan
 
 	wd, err := FindBinary(binary, "", "")
 	if err != nil {
-		return nil, nil, nil, nil, errors.Wrap(err, "error while searching for "+ name+ " binary")
+		return nil, nil, nil, nil, errors.Wrap(err, "error while searching for "+name+" binary")
 	}
 
 	// UUT
