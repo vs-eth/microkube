@@ -30,7 +30,7 @@ func TestControllerManagerStartup(t *testing.T) {
 			t.Fatal("exit detected", exitError)
 		}
 	}
-	handler, _, _, _, err := helpers.StartHandlerForTest("kube-controller-manager", kubeControllerManagerConstructor, exitHandler, true, 30)
+	handler, _, _, _, err := helpers.StartHandlerForTest("kube-controller-manager", "hyperkube", kubeControllerManagerConstructor, exitHandler, false, 30)
 	if err != nil {
 		t.Fatal("Test failed:", err)
 		return

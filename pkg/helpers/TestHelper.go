@@ -30,7 +30,7 @@ import (
 type UUTConstrutor func(ca, server, client *pki.RSACertificate, binary, workdir string, outputHandler handlers.OutputHander, exitHandler handlers.ExitHandler) ([]handlers.ServiceHandler, error)
 
 // StartHandlerForTest starts a given handler for a unit test
-func StartHandlerForTest(name string, constructor UUTConstrutor, exitHandler handlers.ExitHandler, print bool, healthCheckTries int) (handlerList []handlers.ServiceHandler, ca *pki.RSACertificate, client *pki.RSACertificate, server *pki.RSACertificate, err error) {
+func StartHandlerForTest(name, binary string, constructor UUTConstrutor, exitHandler handlers.ExitHandler, print bool, healthCheckTries int) (handlerList []handlers.ServiceHandler, ca *pki.RSACertificate, client *pki.RSACertificate, server *pki.RSACertificate, err error) {
 	tmpdir, err := ioutil.TempDir("", "microkube-unittests-"+name)
 	if err != nil {
 		errors.Wrap(err, "tempdir creation failed")
@@ -46,9 +46,9 @@ func StartHandlerForTest(name string, constructor UUTConstrutor, exitHandler han
 		}
 	}
 
-	wd, err := FindBinary(name, "", "")
+	wd, err := FindBinary(binary, "", "")
 	if err != nil {
-		return nil, nil, nil, nil, errors.Wrap(err, "error while searching for etcd binary")
+		return nil, nil, nil, nil, errors.Wrap(err, "error while searching for "+ name+ " binary")
 	}
 
 	// UUT

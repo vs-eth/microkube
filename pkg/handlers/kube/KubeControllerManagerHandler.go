@@ -128,7 +128,7 @@ func (handler *ControllerManagerHandler) healthCheckFun(responseBin *io.ReadClos
 // kubeControllerManagerConstructor is supposed to be only used for testing
 func kubeControllerManagerConstructor(ca, server, client *pki.RSACertificate, binary, workdir string, outputHandler handlers.OutputHander, exitHandler handlers.ExitHandler) ([]handlers.ServiceHandler, error) {
 	// Start apiserver (and etcd)
-	handlerList, kubeCA, kubeClient, kubeServer, err := helpers.StartHandlerForTest("kube-apiserver", kubeApiServerConstructor, exitHandler, false, 30)
+	handlerList, kubeCA, kubeClient, kubeServer, err := helpers.StartHandlerForTest("kube-apiserver", "hyperkube", kubeApiServerConstructor, exitHandler, false, 30)
 	if err != nil {
 		return handlerList, errors.Wrap(err, "kube-apiserver startup prereq failed")
 	}

@@ -7,11 +7,20 @@ go:
 - "1.10.x"
 
 before_install:
-# We need glide
+# We need glide, etcd and hyperkube
 - wget https://github.com/Masterminds/glide/releases/download/v0.13.1/glide-v0.13.1-linux-amd64.zip
-- sha256sum -c .glide.sha256sum
+- wget https://github.com/coreos/etcd/releases/download/v3.3.9/etcd-v3.3.9-linux-amd64.tar.gz
+- wget https://dl.k8s.io/v1.11.2/kubernetes-server-linux-amd64.tar.gz
+- sha256sum -c .ci.sha256sum
 - unzip glide-v0.13.1-linux-amd64.zip
 - mv linux-amd64/glide $GOPATH/bin/ && chmod +x $GOPATH/bin/glide
+- mkdir third_party
+- tar -xvf kubernetes-server-linux-amd64.tar.gz
+- tar -xvf etcd-v3.3.9-linux-amd64.tar.gz
+- mv kubernetes/server/bin/hyperkube third_party
+- mv etcd-v3.3.9-linux-amd64/etcd third_party
+- rm -Rf kubernetes kubernetes-server-linux-amd64.tar.gz
+- rm -Rf etcd-v3.3.9-linux-amd64 etcd-v3.3.9-linux-amd64.tar.gz
 
 install:
 - glide i
