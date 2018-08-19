@@ -19,10 +19,10 @@ package pki
 import (
 	"bufio"
 	"crypto/x509/pkix"
+	"os"
 	"os/exec"
 	"strings"
 	"testing"
-	"os"
 )
 
 // checkCertProperties validates a given certificate's properties using the openssl commandline utility

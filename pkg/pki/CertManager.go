@@ -33,24 +33,24 @@ import (
 // CertManager manages a x509 PKI with RSA certificates
 type CertManager struct {
 	// Where to store certificates
-	workdir  string
+	workdir string
 	// Size of the keys to create
-	keysize  int
+	keysize int
 	// How long should keys be valid
 	validity time.Duration
 }
 
 type RSACertificate struct {
 	// Certificate as parsed golang struct
-	cert     *x509.Certificate
+	cert *x509.Certificate
 	// Private key as parsed golang struct
-	key      *rsa.PrivateKey
+	key *rsa.PrivateKey
 	// Public key as parsed golang struct
-	pubkey   *rsa.PublicKey
+	pubkey *rsa.PublicKey
 	// CertPath contains the full path to a PEM-encoded representation of this certificate
 	CertPath string
 	// CertPath contains the full path to a PEM-encoded representation of this certificate's private key
-	KeyPath  string
+	KeyPath string
 }
 
 // NewManager creates a CertManager that stores certificates in 'workdir'

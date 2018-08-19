@@ -31,7 +31,7 @@ type KubeLogParser struct {
 	BaseLogParser
 
 	// Application this belongs to
-	app            string
+	app string
 	// Regex used to unindent logs
 	regexpInstance *regexp.Regexp
 }

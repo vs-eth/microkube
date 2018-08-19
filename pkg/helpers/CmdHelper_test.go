@@ -17,10 +17,10 @@
 package helpers
 
 import (
+	"os"
 	"os/exec"
 	"strings"
 	"testing"
-	"os"
 )
 
 // TestInvalidInvocation tests the invocation of a non-existent program

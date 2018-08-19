@@ -32,8 +32,10 @@ import (
 
 // StopHandler describes a function that get's called to stop a process
 type StopHandler func()
+
 // StartHandler describes a function that get's called to start a process, possibly returing an error
 type StartHandler func() error
+
 // HealthCheckValidatorFunction describes a function that get's called with the result of a health check to decode the
 // result
 type HealthCheckValidatorFunction func(result *io.ReadCloser) error

@@ -23,8 +23,8 @@ import (
 	"os"
 	"os/exec"
 	"os/signal"
-	"syscall"
 	"path"
+	"syscall"
 )
 
 // CmdHandler is used to abstract the low-level handling of exec.Command, providing callbacks for events
@@ -157,7 +157,7 @@ func FindBinary(name string, appDir, extraDir string) (string, error) {
 		return "", errors.Wrap(err, "couldn't read cwd")
 	}
 
-	candidates := []string {
+	candidates := []string{
 		path.Join(path.Dir(path.Dir(path.Dir(cwd))), "third_party"),
 		path.Join(path.Dir(path.Dir(cwd)), "third_party"),
 		path.Join(path.Dir(cwd), "third_party"),

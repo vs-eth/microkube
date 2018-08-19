@@ -21,6 +21,7 @@ import (
 	"flag"
 	"github.com/mitchellh/go-homedir"
 	log "github.com/sirupsen/logrus"
+	"github.com/uubk/microkube/internal/cmd"
 	log2 "github.com/uubk/microkube/internal/log"
 	"github.com/uubk/microkube/pkg/handlers"
 	"github.com/uubk/microkube/pkg/handlers/etcd"
@@ -33,7 +34,6 @@ import (
 	"os/signal"
 	"path"
 	"time"
-	"github.com/uubk/microkube/internal/cmd"
 )
 
 // serviceConstructor describes a function that can create a service, given the I/O handlers

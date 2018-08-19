@@ -41,9 +41,9 @@ type kubeBoolPatch struct {
 // KubeClient abstracts operations on a running kubernetes cluster
 type KubeClient struct {
 	// Kubernetes client set for interacting with the real API
-	client  *kubernetes.Clientset
+	client *kubernetes.Clientset
 	// Name of the single node
-	node    string
+	node string
 	// Object reference to the single node
 	nodeRef *av1.Node
 }

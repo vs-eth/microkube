@@ -22,7 +22,6 @@ import (
 	"text/template"
 )
 
-
 // kubeSchedulerConfigData contains data used when templating a kube scheduler config. For internal use only.
 type kubeSchedulerConfigData struct {
 	Kubeconfig string

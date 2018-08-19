@@ -17,10 +17,10 @@
 package cmd
 
 import (
-	"testing"
+	"io/ioutil"
 	"os"
 	"path"
-	"io/ioutil"
+	"testing"
 )
 
 // Test whether EnsureDir works
