@@ -28,6 +28,19 @@ import (
 // checkCertProperties validates a given certificate's properties using the openssl commandline utility
 func checkCertProperties(t *testing.T, cert *RSACertificate, serial, issuerCN, subjectCN, keyUsage, isCA, eku,
 	sans string) {
+	versionCmd := exec.Command("openssl", "version")
+	versionOut, err := versionCmd.Output()
+	if err != nil {
+		t.Error("Unexpected error when checking openssl version:", err)
+		return
+	}
+	opensslVersion := string(versionOut)
+	if strings.Contains(opensslVersion, "1.0.") {
+		// OpenSSL 1.0 does string formatting differently compared to openssl 1.1...
+		serial = strings.Replace(serial, " = ", "=", -1)
+		issuerCN = strings.Replace(issuerCN, " = ", "=", -1)
+		subjectCN = strings.Replace(subjectCN, " = ", "=", -1)
+	}
 	certCheckCmd := exec.Command("openssl", "x509", "-in", cert.CertPath, "-text", "-noout")
 	certCheckBuf, err := certCheckCmd.Output()
 	if err != nil {
