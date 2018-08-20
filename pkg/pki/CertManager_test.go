@@ -87,7 +87,7 @@ func checkCertProperties(t *testing.T, cert *RSACertificate, serial, issuerCN, s
 			if strings.Contains(line, "Subject: ") {
 				if subjectCN != "" {
 					if !strings.Contains(line, subjectCN) {
-						t.Error("Certificate didn't have expected subject CN")
+						t.Errorf("Certificate didn't have expected subject CN: '%s' vs '%s'", line, subjectCN)
 					}
 					numChecked++
 				}
