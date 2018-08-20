@@ -89,7 +89,7 @@ func checkCertProperties(t *testing.T, cert *RSACertificate, serial, issuerCN, s
 					numChecked++
 				}
 			}
-			if strings.Contains(line, "Issuer: CN =") {
+			if strings.Contains(line, "Issuer: CN") {
 				if issuerCN != "" {
 					if !strings.Contains(line, issuerCN) {
 						t.Error("Certificate didn't have expected issuer CN")
