@@ -31,6 +31,6 @@ func TestErrors(t *testing.T) {
 		t.Fatal("Expected error missing!")
 	}
 	if err.Error() != "Couldn't decode buffer: testerror" {
-		t.Fatal("Unexpected error: %s!", err)
+		t.Fatalf("Unexpected error: %s!", err)
 	}
 }
