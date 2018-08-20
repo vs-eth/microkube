@@ -21,6 +21,7 @@ before_install:
 - mv etcd-v3.3.9-linux-amd64/etcd third_party
 - rm -Rf kubernetes kubernetes-server-linux-amd64.tar.gz
 - rm -Rf etcd-v3.3.9-linux-amd64 etcd-v3.3.9-linux-amd64.tar.gz
+- sudo apt update && sudo apt install -y openssl
 
 
 script:
