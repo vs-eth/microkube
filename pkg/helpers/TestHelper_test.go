@@ -17,12 +17,12 @@
 package helpers
 
 import (
-	"testing"
-	"github.com/uubk/microkube/pkg/pki"
+	"github.com/pkg/errors"
 	"github.com/uubk/microkube/pkg/handlers"
+	"github.com/uubk/microkube/pkg/pki"
 	"os"
 	"os/exec"
-	"github.com/pkg/errors"
+	"testing"
 )
 
 // dummyServiceHandler implements the ServiceHandler interface and does nothing
@@ -59,10 +59,10 @@ func (d *dummyServiceHandler) Stop() {
 }
 
 // testUUTConstructorConstructor returns an UUTConstructor for some test 't'
-func testUUTConstructorConstructor(t *testing.T) (func(ca, server, client *pki.RSACertificate, binary, workdir string, outputHandler handlers.OutputHander, exitHandler handlers.ExitHandler) ([]handlers.ServiceHandler, error)) {
+func testUUTConstructorConstructor(t *testing.T) func(ca, server, client *pki.RSACertificate, binary, workdir string, outputHandler handlers.OutputHander, exitHandler handlers.ExitHandler) ([]handlers.ServiceHandler, error) {
 	return func(ca, server, client *pki.RSACertificate, binary, workdir string, outputHandler handlers.OutputHander, exitHandler handlers.ExitHandler) ([]handlers.ServiceHandler, error) {
 		// Check if all files exist
-		files := []string {
+		files := []string{
 			ca.CertPath,
 			ca.KeyPath,
 			server.CertPath,
@@ -92,7 +92,7 @@ func testUUTConstructorConstructor(t *testing.T) (func(ca, server, client *pki.R
 			t.Fatalf("Expected '%s' to be a directory!", workdir)
 		}
 
-		return []handlers.ServiceHandler {
+		return []handlers.ServiceHandler{
 			&dummyServiceHandler{},
 		}, nil
 	}

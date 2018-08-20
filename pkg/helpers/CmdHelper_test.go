@@ -160,7 +160,7 @@ func TestProcessKill(t *testing.T) {
 		return
 	}
 	// Wait two seconds which should be enough to start. This isn't exactly the best solution :/
-	time.Sleep(2*time.Second)
+	time.Sleep(2 * time.Second)
 	// Kill the process
 	handler.Stop()
 

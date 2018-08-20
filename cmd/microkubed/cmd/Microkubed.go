@@ -125,7 +125,7 @@ func (m *Microkubed) handleArgs() {
 }
 
 // Calculate all IP ranges from the command line strings
-func (m *Microkubed) calculateIPRanges(podRange, serviceRange string) (error) {
+func (m *Microkubed) calculateIPRanges(podRange, serviceRange string) error {
 	var podRangeIP, serviceRangeIP net.IP
 	var err error
 

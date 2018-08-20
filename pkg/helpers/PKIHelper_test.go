@@ -17,9 +17,9 @@
 package helpers
 
 import (
-	"testing"
 	"io/ioutil"
 	"os"
+	"testing"
 )
 
 // TestCertHelper checks whether the CertHelper method creates all certificates
@@ -36,7 +36,7 @@ func TestCertHelper(t *testing.T) {
 	// CertHelper uses the CertManager class to generate the certificates, which is tested separately
 	// We therefore assume that the individual certificates are generated correctly
 
-	files := []string {
+	files := []string{
 		ca.CertPath,
 		ca.KeyPath,
 		server.CertPath,
