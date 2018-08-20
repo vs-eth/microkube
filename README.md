@@ -3,6 +3,7 @@ A small tool to quickly bootstrap a kubernetes cluster against a local docker da
 
 [![Build Status](https://travis-ci.com/uubk/microkube.svg?branch=master)](https://travis-ci.com/uubk/microkube)
 [![Go Report Card](https://goreportcard.com/badge/github.com/uubk/microkube?style=flat)](https://goreportcard.com/report/github.com/uubk/microkube)
+[![codecov](https://codecov.io/gh/uubk/microkube/branch/master/graph/badge.svg)](https://codecov.io/gh/uubk/microkube)
 [![Go Doc](https://img.shields.io/badge/godoc-reference-blue.svg?style=flat)](http://godoc.org/github.com/uubk/microkube)
 [![Release](https://img.shields.io/github/tag/uubk/microkube.svg?style=flat)](https://github.com/uubk/microkube/releases/latest)
 
