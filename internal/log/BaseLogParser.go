@@ -53,11 +53,15 @@ func NewBaseLogParser(lineHandler LineHandlerFunc) *BaseLogParser {
 
 // HandleData is invoked for each new buffer of data, see docs of interface type
 func (lp *BaseLogParser) HandleData(data []byte) error {
-	lp.buf.Write(data)
+	if data != nil {
+		lp.buf.Write(data)
+	}
 
+	consumedData := false
 	if strings.Contains(lp.buf.String(), "\n") {
 		line, err := lp.buf.ReadString('\n')
 		if err == nil {
+			consumedData = true
 			err := lp.lineHandler(line)
 			if err != nil {
 				return errors.Wrap(err, "Couldn't decode buffer")
@@ -65,6 +69,10 @@ func (lp *BaseLogParser) HandleData(data []byte) error {
 		} else {
 			return errors.New("Buffer contained '\\n' but no line could be read?")
 		}
+	}
+
+	if consumedData {
+		return lp.HandleData(nil)
 	}
 
 	return nil
