@@ -24,7 +24,7 @@ before_install:
 
 
 script:
-- go test -coverprofile=coverage.txt -covermode=atomic -v ./...
+- go test -race -coverprofile=coverage.txt -covermode=atomic -v ./...
 
 install:
 - glide i

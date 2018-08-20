@@ -50,6 +50,8 @@ type EtcdHandler struct {
 	cacert string
 	// Output handler
 	out handlers.OutputHander
+	// Exit handler
+	exit handlers.ExitHandler
 }
 
 // NewEtcdHandler creates an EtcdHandler from the arguments provided
@@ -64,9 +66,10 @@ func NewEtcdHandler(datadir, binary string, server, client, ca *pki.RSACertifica
 		cacert:     ca.CertPath,
 		cmd:        nil,
 		out:        out,
+		exit:       exit,
 	}
 	obj.BaseServiceHandler = *handlers.NewHandler(exit, obj.healthCheckFun,
-		"https://localhost:2379/health", obj.stop, obj.Start, ca, client)
+		"https://localhost:"+strconv.Itoa(obj.clientport)+"/health", obj.stop, obj.Start, ca, client)
 	return obj
 }
 
@@ -127,8 +130,15 @@ func (handler *EtcdHandler) healthCheckFun(responseBin *io.ReadCloser) error {
 }
 
 // EtcdHandlerConstructor is supposed to be only used for testing
-func EtcdHandlerConstructor(ca, server, client *pki.RSACertificate, binary, workdir string, outputHandler handlers.OutputHander, exitHandler handlers.ExitHandler) ([]handlers.ServiceHandler, error) {
-	return []handlers.ServiceHandler{
-		NewEtcdHandler(workdir, binary, server, client, ca, outputHandler, exitHandler),
-	}, nil
+func EtcdHandlerConstructor(firstPort int) func(ca, server, client *pki.RSACertificate, binary, workdir string, outputHandler handlers.OutputHander, exitHandler handlers.ExitHandler) ([]handlers.ServiceHandler, error) {
+	return func(ca, server, client *pki.RSACertificate, binary, workdir string, outputHandler handlers.OutputHander, exitHandler handlers.ExitHandler) ([]handlers.ServiceHandler, error) {
+		handler := NewEtcdHandler(workdir, binary, server, client, ca, outputHandler, exitHandler)
+		handler.clientport = firstPort
+		handler.peerport = firstPort + 1
+		handler.BaseServiceHandler = *handlers.NewHandler(handler.exit, handler.healthCheckFun,
+			"https://localhost:"+strconv.Itoa(handler.clientport)+"/health", handler.stop, handler.Start, ca, client)
+		return []handlers.ServiceHandler{
+			handler,
+		}, nil
+	}
 }

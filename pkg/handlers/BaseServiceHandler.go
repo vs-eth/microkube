@@ -28,6 +28,7 @@ import (
 	"net/http"
 	"net/url"
 	"os/exec"
+	"sync/atomic"
 	"time"
 )
 
@@ -45,7 +46,7 @@ type HealthCheckValidatorFunction func(result *io.ReadCloser) error
 // bundling common functions
 type BaseServiceHandler struct {
 	// Is the health check goroutine running (that is, do we need to stop it)?
-	healthCheckRunning bool
+	healthCheckRunning int32
 	// Channel to communicate with the health check routine. Write anything to this chanel to exit it
 	healthCheck chan bool
 	// Number of service restart retires left
@@ -71,7 +72,7 @@ type BaseServiceHandler struct {
 func NewHandler(exit ExitHandler, healthCheckValidator HealthCheckValidatorFunction, healthCheckEndpoint string,
 	stopHandler StopHandler, startHandler StartHandler, ca, client *pki.RSACertificate) *BaseServiceHandler {
 	return &BaseServiceHandler{
-		healthCheckRunning:   false,
+		healthCheckRunning:   0,
 		healthCheck:          make(chan bool, 2),
 		retriesLeft:          1,
 		exit:                 exit,
@@ -148,7 +149,7 @@ func (handler *BaseServiceHandler) healthCheckFun() error {
 // Stop stops the service. See interface ServiceHandler.
 func (handler *BaseServiceHandler) Stop() {
 	handler.stopHandler()
-	if handler.healthCheckRunning {
+	if atomic.LoadInt32(&handler.healthCheckRunning) == 1 {
 		// Notify goroutine of exit
 		handler.healthCheck <- true
 	}
@@ -156,8 +157,8 @@ func (handler *BaseServiceHandler) Stop() {
 
 // EnableHealthChecks enables health checks, see interface ServiceHandler.
 func (handler *BaseServiceHandler) EnableHealthChecks(messages chan HealthMessage, forever bool) {
-	if !handler.healthCheckRunning {
-		handler.healthCheckRunning = true
+	if atomic.LoadInt32(&handler.healthCheckRunning) == 0 {
+		atomic.StoreInt32(&handler.healthCheckRunning, 1)
 		go func() {
 			for {
 				val := handler.healthCheckFun()
@@ -166,7 +167,7 @@ func (handler *BaseServiceHandler) EnableHealthChecks(messages chan HealthMessag
 					Error:     val,
 				}
 				if !forever {
-					handler.healthCheckRunning = false
+					atomic.StoreInt32(&handler.healthCheckRunning, 0)
 					break
 				}
 				select {

@@ -24,13 +24,13 @@ import (
 	"crypto/x509/pkix"
 	"encoding/pem"
 	"github.com/pkg/errors"
+	"io"
 	"math/big"
 	insecure_rand "math/rand"
 	"net"
 	"os"
 	"path"
 	"time"
-	"io"
 )
 
 // CertManager manages a x509 PKI with RSA certificates
@@ -62,9 +62,9 @@ type RSACertificate struct {
 // NewManager creates a CertManager that stores certificates in 'workdir'
 func NewManager(workdir string) *CertManager {
 	return &CertManager{
-		workdir:  workdir,
-		keysize:  2048,
-		validity: time.Hour * 24 * 365,
+		workdir:    workdir,
+		keysize:    2048,
+		validity:   time.Hour * 24 * 365,
 		randReader: rand.Reader,
 	}
 }

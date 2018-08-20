@@ -158,7 +158,7 @@ func (handler *KubeAPIServerHandler) healthCheckFun(responseBin *io.ReadCloser) 
 
 // kubeApiServerConstructor is supposed to be only used for testing
 func kubeApiServerConstructor(ca, server, client *pki.RSACertificate, binary, workdir string, outputHandler handlers.OutputHander, exitHandler handlers.ExitHandler) ([]handlers.ServiceHandler, error) {
-	handlerList, etcdCA, etcdClient, _, err := helpers.StartHandlerForTest("etcd", "etcd", etcd.EtcdHandlerConstructor, exitHandler, false, 1)
+	handlerList, etcdCA, etcdClient, _, err := helpers.StartHandlerForTest("etcd", "etcd", etcd.EtcdHandlerConstructor(2379), exitHandler, false, 1)
 	if err != nil {
 		return handlerList, errors.Wrap(err, "etcd startup prereq failed")
 	}
