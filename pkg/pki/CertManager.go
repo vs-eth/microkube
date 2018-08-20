@@ -149,7 +149,7 @@ func (manager *CertManager) NewSelfSignedCert(name string, x509Name pkix.Name, s
 		NotAfter:              time.Now().Add(manager.validity),
 		KeyUsage:              x509.KeyUsageCertSign | x509.KeyUsageKeyEncipherment | x509.KeyUsageDigitalSignature,
 		BasicConstraintsValid: true,
-		IsCA: true,
+		IsCA: false,
 	}
 	cert, err := x509.CreateCertificate(manager.randReader, &certTmpl, &certTmpl, &privateKey.PublicKey, privateKey)
 	if err != nil {

@@ -118,11 +118,14 @@ func (m *Microkubed) handleArgs() {
 		log.WithError(err).WithField("extraBinDir", *extraBinDir).Fatal("Couldn't expand extraBin directory")
 	}
 
-	m.calculateIPRanges(*podRange, *serviceRange)
+	err = m.calculateIPRanges(*podRange, *serviceRange)
+	if err != nil {
+		log.Fatal("IP calculation returned error, aborting now!")
+	}
 }
 
 // Calculate all IP ranges from the command line strings
-func (m *Microkubed) calculateIPRanges(podRange, serviceRange string) {
+func (m *Microkubed) calculateIPRanges(podRange, serviceRange string) (error) {
 	var podRangeIP, serviceRangeIP net.IP
 	var err error
 
@@ -131,13 +134,15 @@ func (m *Microkubed) calculateIPRanges(podRange, serviceRange string) {
 	if err != nil {
 		log.WithFields(log.Fields{
 			"range": podRange,
-		}).WithError(err).Fatal("Couldn't parse pod CIDR range")
+		}).WithError(err).Warn("Couldn't parse pod CIDR range")
+		return err
 	}
 	m.serviceRangeIP, m.serviceRangeNet, err = net.ParseCIDR(serviceRange)
 	if err != nil {
 		log.WithFields(log.Fields{
 			"range": podRange,
-		}).WithError(err).Fatal("Couldn't parse service CIDR range")
+		}).WithError(err).Warn("Couldn't parse service CIDR range")
+		return err
 	}
 
 	// Find address to bind to
@@ -174,6 +179,8 @@ func (m *Microkubed) calculateIPRanges(podRange, serviceRange string) {
 		"clusterRange": m.clusterIPRange.String(),
 		"hostIP":       m.bindAddr,
 	}).Info("IP ranges calculated")
+
+	return nil
 }
 
 // Create directories and copy CNI plugins if appropriate
