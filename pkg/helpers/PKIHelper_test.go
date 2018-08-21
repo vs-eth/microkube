@@ -19,6 +19,7 @@ package helpers
 import (
 	"io/ioutil"
 	"os"
+	"strings"
 	"testing"
 )
 
@@ -56,5 +57,26 @@ func TestCertHelper(t *testing.T) {
 		if status.Size() < 512 {
 			t.Fatalf("Expected '%s' to be at least 512 bytes!", file)
 		}
+	}
+}
+
+// TestCertHelperErrorCase checks CertHelper for aborts
+func TestCertHelperErrorCase(t *testing.T) {
+	directory, err := ioutil.TempDir("", "microkube-helper-unittests")
+	if err != nil {
+		t.Fatalf("Unexpected error: %s", err)
+	}
+	err = os.Remove(directory)
+	if err != nil {
+		t.Fatalf("Unexpected error: %s", err)
+	}
+
+	// Should error out because the directory does not exist
+	_, _, _, err = CertHelper(directory, "foobar")
+	if err == nil {
+		t.Fatal("Expected error missing")
+	}
+	if !strings.Contains(err.Error(), "ca creation failed: keyfile creation failed: open") {
+		t.Fatalf("Unexpected error: %s", err)
 	}
 }
