@@ -17,6 +17,7 @@
 package cmd
 
 import (
+	"context"
 	"encoding/json"
 	"github.com/pkg/errors"
 	log "github.com/sirupsen/logrus"
@@ -27,21 +28,16 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/clientcmd"
-	"os"
 	"time"
 )
 
 // kubeBoolPatch is used to serialize a boolean change to JSON
-type kubeBoolPatch struct {
-	Op    string `json:"op"`
-	Path  string `json:"path"`
-	Value bool   `json:"value"`
-}
+type kubeMergePatch map[string]interface{}
 
 // KubeClient abstracts operations on a running kubernetes cluster
 type KubeClient struct {
 	// Kubernetes client set for interacting with the real API
-	client *kubernetes.Clientset
+	client kubernetes.Interface
 	// Name of the single node
 	node string
 	// Object reference to the single node
@@ -77,12 +73,14 @@ func (k *KubeClient) findNode() {
 			"app":       "microkube",
 			"component": "kube-interface",
 		}).WithError(err).Fatalf("Couldn't list nodes!")
+		return
 	}
 	if len(nodeList.Items) < 1 {
 		log.WithFields(log.Fields{
 			"app":       "microkube",
 			"component": "kube-interface",
 		}).Info("No node registered yet")
+		return
 	}
 	if len(nodeList.Items) > 1 {
 		log.WithFields(log.Fields{
@@ -99,15 +97,9 @@ func (k *KubeClient) findNode() {
 // as it is used internally for recursion
 func (k *KubeClient) setNodeUnschedulable(unschedulable, firstPass bool) {
 	// If we add the taint, try adding the attribute first ;)
-	payload := []kubeBoolPatch{{
-		Op:    "replace",
-		Path:  "/spec/unschedulable",
-		Value: unschedulable,
-	}}
-	if firstPass && unschedulable {
-		payload[0].Op = "add"
-	}
-	payloadBin, _ := json.Marshal(payload)
+	patch := kubeMergePatch{}
+	patch["$replace/spec/unschedulable"] = unschedulable
+	payloadBin, _ := json.Marshal(patch)
 	_, err := k.client.CoreV1().Nodes().Patch(k.nodeRef.ObjectMeta.Name, types.JSONPatchType, payloadBin)
 	if err != nil {
 		if firstPass && unschedulable {
@@ -123,7 +115,7 @@ func (k *KubeClient) setNodeUnschedulable(unschedulable, firstPass bool) {
 }
 
 // DrainNode drains a node, that is stopping all pods on it
-func (k *KubeClient) DrainNode() {
+func (k *KubeClient) DrainNode(ctx context.Context) error {
 	// Force client to refresh node
 	k.node = ""
 	k.findNode()
@@ -131,8 +123,8 @@ func (k *KubeClient) DrainNode() {
 		log.WithFields(log.Fields{
 			"app":       "microkube",
 			"component": "kube-interface",
-		}).Fatalf("No node found while draining node?")
-		os.Exit(-1)
+		}).Warn("No node found while draining node?")
+		return errors.New("No node found while draining node?")
 	}
 	// Step 1: Disable scheduling on the node
 	k.setNodeUnschedulable(true, true)
@@ -143,10 +135,13 @@ func (k *KubeClient) DrainNode() {
 			"app":       "microkube",
 			"component": "kube-interface",
 		}).WithError(err).Fatalf("Couldn't list pods")
-		os.Exit(-1)
+		return errors.New("list pods failed")
 	}
 	var pendingPods []av1.Pod
 	for _, pod := range pods.Items {
+		if deadline, ok := ctx.Deadline(); ok && deadline.Before(time.Now()) {
+			return context.DeadlineExceeded
+		}
 		// Create eviction for this pod
 		TEN := int64(10) // We require a pointer to this!
 		eviction := v1beta1.Eviction{
@@ -168,7 +163,7 @@ func (k *KubeClient) DrainNode() {
 			"namespace": pod.Namespace,
 			"pod":       pod.Name,
 		}).Info("Evicting pod...")
-		err := k.client.PolicyV1beta1().Evictions(eviction.Namespace).Evict(&eviction)
+		err = k.client.PolicyV1beta1().Evictions(eviction.Namespace).Evict(&eviction)
 		if err != nil {
 			log.WithFields(log.Fields{
 				"app":       "microkube",
@@ -185,6 +180,9 @@ func (k *KubeClient) DrainNode() {
 		"component": "kube-interface",
 	}).Info("Waiting for evicted pods to stop...")
 	for {
+		if deadline, ok := ctx.Deadline(); ok && deadline.Before(time.Now()) {
+			return context.DeadlineExceeded
+		}
 		runningPods := 0
 		for _, pod := range pendingPods {
 			_, err := k.client.CoreV1().Pods(pod.Namespace).Get(pod.Name, v1.GetOptions{})
@@ -210,7 +208,7 @@ func (k *KubeClient) DrainNode() {
 				"app":       "microkube",
 				"component": "kube-interface",
 			}).Info("All pods gone!")
-			return
+			return nil
 		}
 		time.Sleep(2 * time.Second)
 	}
@@ -218,8 +216,11 @@ func (k *KubeClient) DrainNode() {
 
 // WaitForNode delays execution until a single node exists and is in state 'Ready', removing the unschedulable taint
 // if possible
-func (k *KubeClient) WaitForNode() {
+func (k *KubeClient) WaitForNode(ctx context.Context) error {
 	for {
+		if deadline, ok := ctx.Deadline(); ok && deadline.Before(time.Now()) {
+			return context.DeadlineExceeded
+		}
 		// Always refresh
 		k.node = ""
 		k.findNode()
@@ -251,7 +252,7 @@ func (k *KubeClient) WaitForNode() {
 			if k.nodeRef.Spec.Unschedulable {
 				k.setNodeUnschedulable(false, true)
 			}
-			return
+			return nil
 		}
 		time.Sleep(1 * time.Second)
 	}

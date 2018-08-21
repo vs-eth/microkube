@@ -18,6 +18,7 @@
 package cmd
 
 import (
+	"context"
 	"flag"
 	"github.com/mitchellh/go-homedir"
 	log "github.com/sirupsen/logrus"
@@ -432,14 +433,14 @@ func (m *Microkubed) waitUntilNodeReady() chan bool {
 		log.WithError(err).Fatalf("Couldn't init kube client")
 	}
 	log.Info("Waiting for node...")
-	kCl.WaitForNode()
+	kCl.WaitForNode(context.Background())
 	// Since we got to this point: Handle quitting gracefully (that is stop all pods!)
 	sigChan := make(chan os.Signal, 1)
 	exitChan := make(chan bool, 1)
 	go func() {
 		<-sigChan
 		log.Info("Shutting down...")
-		kCl.DrainNode()
+		kCl.DrainNode(context.Background())
 		exitChan <- true
 	}()
 	// Unregister "terminate immediately" serviceHandlers set during startup
