@@ -18,7 +18,6 @@ package cmd
 
 import (
 	"crypto/x509/pkix"
-	"github.com/pkg/errors"
 	log "github.com/sirupsen/logrus"
 	"github.com/uubk/microkube/pkg/pki"
 	"os"
@@ -39,13 +38,14 @@ func EnsureFullPKI(root, name string, isKubeCA, isETCDCA bool, ip []string) (ca 
 		// Reuse CA code ;)
 		ca, err := EnsureCA(root, name)
 		if err != nil {
-			log.WithError(err).WithField("root", root).Fatal("Couldn't create CA")
+			// Already logged
 			return nil, nil, nil, err
 		}
 
 		hostname, err := os.Hostname()
 		if err != nil {
-			return nil, nil, nil, errors.Wrap(err, "Couldn't read hostname")
+			log.WithError(err).Warn("Couldn't read hostname")
+			return nil, nil, nil, err
 		}
 
 		ip = append(ip, "127.0.0.1", "localhost", hostname)
@@ -53,7 +53,7 @@ func EnsureFullPKI(root, name string, isKubeCA, isETCDCA bool, ip []string) (ca 
 			CommonName: name + " Server",
 		}, 2, true, isETCDCA, ip, ca)
 		if err != nil {
-			log.WithError(err).WithField("root", root).Fatal("Couldn't create server cert")
+			log.WithError(err).WithField("root", root).Warn("Couldn't create server cert")
 			return nil, nil, nil, err
 		}
 
@@ -65,7 +65,7 @@ func EnsureFullPKI(root, name string, isKubeCA, isETCDCA bool, ip []string) (ca 
 		}
 		client, err := certMgr.NewCert("client", clientName, 3, false, true, nil, ca)
 		if err != nil {
-			log.WithError(err).WithField("root", root).Fatal("Couldn't create client cert")
+			log.WithError(err).WithField("root", root).Warn("Couldn't create client cert")
 			return nil, nil, nil, err
 		}
 
@@ -97,7 +97,7 @@ func EnsureCA(root, name string) (ca *pki.RSACertificate, err error) {
 			CommonName: name + " CA",
 		}, 1)
 		if err != nil {
-			log.WithError(err).WithField("root", root).Fatal("Couldn't create CA")
+			log.WithError(err).WithField("root", root).Warn("Couldn't create CA")
 			return nil, err
 		}
 		return ca, nil
@@ -122,7 +122,7 @@ func EnsureSigningCert(root, name string) (ca *pki.RSACertificate, err error) {
 			CommonName: name + " Signing Cert",
 		}, 1)
 		if err != nil {
-			log.WithError(err).WithField("root", root).Fatal("Couldn't create signing cert")
+			log.WithError(err).WithField("root", root).Warn("Couldn't create signing cert")
 			return nil, err
 		}
 		return ca, nil
