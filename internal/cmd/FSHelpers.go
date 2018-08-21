@@ -18,6 +18,7 @@
 package cmd
 
 import (
+	"github.com/sirupsen/logrus"
 	log "github.com/sirupsen/logrus"
 	"os"
 	"path"
@@ -25,6 +26,8 @@ import (
 
 // EnsureDir ensures that root/subdirectory exists, is a directory and has permissions 'permissions'
 func EnsureDir(root, subdirectory string, permissions os.FileMode) error {
+	logrus.SetLevel(logrus.FatalLevel)
+
 	dir := path.Join(root, subdirectory)
 
 	// Errors in mkdir are ignored
@@ -35,11 +38,11 @@ func EnsureDir(root, subdirectory string, permissions os.FileMode) error {
 
 	info, err := os.Stat(dir)
 	if err != nil {
-		log.WithField("dir", dir).WithError(err).Fatal("Couldn't stat directory")
+		log.WithField("dir", dir).WithError(err).Warn("Couldn't stat directory")
 		return err
 	}
 	if !info.IsDir() {
-		log.WithField("dir", dir).WithError(err).Fatal("Directory is not a directory")
+		log.WithField("dir", dir).WithError(err).Warn("Directory is not a directory")
 		return err
 	}
 	return nil
