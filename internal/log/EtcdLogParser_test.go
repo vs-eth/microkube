@@ -52,6 +52,26 @@ func TestETCDMessageTypes(t *testing.T) {
 	}
 }
 
+// TestInvalidETCDMessage tests an invalid etcd message
+func TestInvalidETCDMessage(t *testing.T) {
+	var buffer bytes.Buffer
+	logrus.SetLevel(logrus.DebugLevel)
+	logrus.SetOutput(&buffer)
+	logrus.SetFormatter(&logrus.JSONFormatter{
+		DisableTimestamp: true,
+	})
+	testStr := "2018-08-12 14:13:48.437712 X |\n"
+	uut := NewETCDLogParser()
+	err := uut.HandleData([]byte(testStr))
+	if err != nil {
+		t.Fatalf("Unexpected error: %s", err)
+	}
+	result := buffer.String()
+	if result != "{\"app\":\"etcd\",\"component\":\"EtcdLogParser\",\"level\":\"warning\",\"msg\":\"2018-08-12 14:13:48.437712 X |\"}\n" {
+		t.Fatalf("Unexpected output: %s", result)
+	}
+}
+
 // TestInvalidETCDMessageType tests an invalid etcd message type
 func TestInvalidETCDMessageType(t *testing.T) {
 	var buffer bytes.Buffer
