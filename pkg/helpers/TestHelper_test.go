@@ -27,22 +27,31 @@ import (
 
 // dummyServiceHandler implements the ServiceHandler interface and does nothing
 type dummyServiceHandler struct {
-	isStarted bool
+	isStarted      bool
+	errorCallCount int
 }
 
 // Start starts this service.
 func (d *dummyServiceHandler) Start() error {
 	d.isStarted = true
-	return nil
+	d.errorCallCount--
+	if d.errorCallCount == 0 {
+		return errors.New("Test error")
+	} else {
+		return nil
+	}
 }
 
 // EnableHealthChecks enable health checks, either for one check (forever == false) or until the process is stopped.
 // Each health probe will write it's result to the channel provided
 func (d *dummyServiceHandler) EnableHealthChecks(messages chan handlers.HealthMessage, forever bool) {
+	d.errorCallCount--
+	healthy := !(d.errorCallCount == 0)
+
 	msg := handlers.HealthMessage{
-		IsHealthy: d.isStarted,
+		IsHealthy: healthy,
 	}
-	if !d.isStarted {
+	if !healthy {
 		msg.Error = errors.New("Invalid state, not started")
 	}
 	messages <- msg
@@ -59,7 +68,7 @@ func (d *dummyServiceHandler) Stop() {
 }
 
 // testUUTConstructorConstructor returns an UUTConstructor for some test 't'
-func testUUTConstructorConstructor(t *testing.T) func(ca, server, client *pki.RSACertificate, binary, workdir string, outputHandler handlers.OutputHander, exitHandler handlers.ExitHandler) ([]handlers.ServiceHandler, error) {
+func testUUTConstructorConstructor(t *testing.T, errorCallCount int) func(ca, server, client *pki.RSACertificate, binary, workdir string, outputHandler handlers.OutputHander, exitHandler handlers.ExitHandler) ([]handlers.ServiceHandler, error) {
 	return func(ca, server, client *pki.RSACertificate, binary, workdir string, outputHandler handlers.OutputHander, exitHandler handlers.ExitHandler) ([]handlers.ServiceHandler, error) {
 		// Check if all files exist
 		files := []string{
@@ -92,23 +101,85 @@ func testUUTConstructorConstructor(t *testing.T) func(ca, server, client *pki.RS
 			t.Fatalf("Expected '%s' to be a directory!", workdir)
 		}
 
+		errorCallCount--
+		if errorCallCount == 0 {
+			return nil, errors.New("Test error")
+		}
+
+		outputHandler([]byte("Foobar"))
+
 		return []handlers.ServiceHandler{
-			&dummyServiceHandler{},
+			&dummyServiceHandler{errorCallCount: errorCallCount},
 		}, nil
 	}
 }
 
 // TestStartHandlerForTest uses StartHandlerForTest to start a dummy handler
 func TestStartHandlerForTest(t *testing.T) {
-	handler := testUUTConstructorConstructor(t)
+	handler := testUUTConstructorConstructor(t, 0)
 	handlerList, _, _, _, err := StartHandlerForTest("testhandler", "/bin/bash", handler, func(success bool,
 		exitError *exec.ExitError) {
 
-	}, false, 1)
+	}, true, 1)
 	if err != nil {
 		t.Fatalf("Unexpected error: %s", err)
 	}
 	if len(handlerList) != 1 {
 		t.Fatalf("Expected handler list to only contain _one_ element")
+	}
+}
+
+// TestStartHandlerForTestErrors injects faults into StartHandlerForTest to test different error cases
+func TestStartHandlerForTestErrors(t *testing.T) {
+	// Inject fault into start
+	handler := testUUTConstructorConstructor(t, 2)
+	_, _, _, _, err := StartHandlerForTest("testhandler", "/bin/bash", handler, func(success bool,
+		exitError *exec.ExitError) {
+
+	}, false, 1)
+	if err == nil {
+		t.Fatal("Expected error missing!")
+	}
+	if err.Error() != "testhandler startup failed: Test error" {
+		t.Fatalf("Unexpected error: %s", err)
+	}
+
+	// Inject fault into constructor
+	handler = testUUTConstructorConstructor(t, 1)
+	_, _, _, _, err = StartHandlerForTest("testhandler", "/bin/bash", handler, func(success bool,
+		exitError *exec.ExitError) {
+
+	}, false, 1)
+	if err == nil {
+		t.Fatal("Expected error missing!")
+	}
+	if err.Error() != "testhandler handler creation failed: Test error" {
+		t.Fatalf("Unexpected error: %s", err)
+	}
+
+	// Inject fault into health check
+	handler = testUUTConstructorConstructor(t, 3)
+	_, _, _, _, err = StartHandlerForTest("testhandler", "/bin/bash", handler, func(success bool,
+		exitError *exec.ExitError) {
+
+	}, false, 1)
+	if err == nil {
+		t.Fatal("Expected error missing!")
+	}
+	if err.Error() != "testhandler unhealthy: : Invalid state, not started" {
+		t.Fatalf("Unexpected error: %s", err)
+	}
+
+	// Inject fault into binary check
+	handler = testUUTConstructorConstructor(t, 0)
+	_, _, _, _, err = StartHandlerForTest("testhandler", "/bin/bashbashbashbashbashABC", handler, func(success bool,
+		exitError *exec.ExitError) {
+
+	}, false, 1)
+	if err == nil {
+		t.Fatal("Expected error missing!")
+	}
+	if err.Error() != "error while searching for testhandler binary: Couldn't find file" {
+		t.Fatalf("Unexpected error: %s", err)
 	}
 }
