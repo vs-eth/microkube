@@ -3,9 +3,6 @@ language: go
 notifications:
   email: false
 
-env:
-  secure: "hU17t3tJF6QW2Ln1wzwV5QqAXIe62OH5AwFyY0c9/Jl9exUrwlmlYJ0cEpbnj7Hfk+BdSkepSvQYpgeqJ8NIjE+j5CoxtmVhLskVCByGLe/ICd6ZhWQdhIAknkCpPovSvKEjVxRnNvp/7vQXXWLKWx9c7ujk6TuyHAq8Db+45gqcudnhv+9wur17zgBT8lp+qwGlKuMaAmlpJ2cM/B4+32NhXSU8PFcj1+e1jiOVAIx81Yg9jp2XkL3K89gJATkg4th58f3HsdMUp+qK1IvcG5mm4cFIDWPNrkLDkJDK0CftLtU0cOlAQluhIjmKnHNkXhjj7BlS9qGpABiAwkPUYTopLYkwMfISNWUB1kL614LSOVH4fM12B96n6eW9rjRww9jQU2CZI9BH7t7Ox+AMveppZme1JQofTblR8zsEcnieVdGzMfqFhbcwNobkkNx+vMKivyJrXWIOrJBPl2rAE9WiuzMauZHSlC8/J+dBYxHFGXD/x/zi4z2zJB8Xak4FcHQAxWuagZBtqD/ux1S3a3nxRu99namsFHC+1eE/6CA2ZRUSM8aGFunBDjbbPg8/u9vgKlJ46fEfdMeI6Gl8uCTsHqDn+DQsZqOQSKF1JhaRUVSFU2qSanDQVd4hz9IsCo6IYeuvLa4BTLmv+rf4r0NWtf/XI4qSm66qKR/+AtE="
-
 go:
 - "1.10.x"
 
@@ -39,12 +36,13 @@ before_install:
 - docker run --rm -v /usr/bin:/target jpetazzo/nsenter
 
 script:
-- go test -race -coverprofile=coverage.txt -covermode=atomic -run 'Test[^I][^n]' -v ./...
-- go test -race -coverprofile=coverage.txt -covermode=atomic -run 'TestIn' -v ./...
+- go test -race -coverprofile=cover1 -covermode=atomic -run 'Test[^I][^n]' -v ./...
+- go test -race -coverprofile=cover2 -covermode=atomic -run 'TestIn' -v ./...
 
 install:
 - glide i
 
 after_success:
+- cat cover1 cover2 > coverage.txt
 - goveralls -coverprofile=coverage.txt -service=travis-ci -repotoken $COVERALLS_TOKEN
 - bash <(curl -s https://codecov.io/bash)
