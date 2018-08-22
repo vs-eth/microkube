@@ -67,55 +67,47 @@ func TestEchoInvocation(t *testing.T) {
 func TestEcho(t *testing.T) {
 	exitWaiter := make(chan bool)
 	exitStdout := make(chan string, 10)
-	exitStderr := make(chan string, 10)
 	exitHandler := func(rc bool, error *exec.ExitError) {
 		exitWaiter <- rc
 	}
 	stdoutHandler := func(value []byte) {
 		exitStdout <- string(value)
 	}
-	stderrHandler := func(value []byte) {
-		exitStderr <- string(value)
-	}
 	handler := NewCmdHandler("/bin/bash", []string{
 		"-c",
 		"echo test ; >&2 echo foobar",
-	}, exitHandler, stdoutHandler, stderrHandler)
+	}, exitHandler, stdoutHandler, stdoutHandler)
 	err := handler.Start()
 	if err != nil {
-		t.Error("Coudln't start program")
+		t.Fatalf("Coudln't start program")
 		return
 	}
 	ctx, _ := context.WithTimeout(context.Background(), 2*time.Second)
-	exitChecked, stdoutChecked, stderrChecked := false, false, false
+	exitChecked, stdoutChecked := false, false
+	stdout := ""
 	for {
 		timeout := false
 		select {
 		case rc := <-exitWaiter:
 			if !rc {
-				t.Error("Couldn't execute echo!")
+				t.Fatal("Couldn't execute echo!")
 			}
 			exitChecked = true
 		case str := <-exitStdout:
-			if strings.Trim(str, " \t\r\n") != "test" {
-				t.Error("Unexpected stdout: '", str, "'")
-			}
+			stdout = stdout + strings.Trim(str, " \t\r\n") + " "
 			stdoutChecked = true
-		case str := <-exitStderr:
-			if strings.Trim(str, " \t\r\n") != "foobar" {
-				t.Error("Unexpected stderr: '", str, "'")
-			}
-			stderrChecked = true
 		case <-ctx.Done():
 			timeout = true
 		}
-		if timeout || (exitChecked && stderrChecked && stdoutChecked) {
+		if timeout || (exitChecked && stdoutChecked) {
 			break
 		}
 	}
-	if !exitChecked || !stderrChecked || !stdoutChecked {
-		t.Fatalf("Test timeouted, exitChecked: %t, stdoutChecked: %t, stderrChecked: %t", exitChecked, stdoutChecked,
-			stderrChecked)
+	if !strings.Contains(stdout, "test") || !strings.Contains(stdout, "foobar") {
+		t.Fatal("Unexpected stdout: '", stdout, "'")
+	}
+	if !exitChecked || !stdoutChecked {
+		t.Fatalf("Test timeouted, exitChecked: %t, stdoutChecked: %t", exitChecked, stdoutChecked)
 	}
 }
 
