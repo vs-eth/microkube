@@ -38,7 +38,7 @@ script:
 - sudo killall etcd || /bin/true
 - sudo killall hyperkube || /bin/true
 - sudo rm -Rf /tmp/microkube* || /bin/true
-- go test -coverprofile=cover2 -covermode=atomic -run 'TestIn' -v ./...
+- go test -coverprofile=cover2 -covermode=atomic -run 'TestII' -v ./...
 
 install:
 - glide i
