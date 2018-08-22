@@ -22,6 +22,7 @@ import (
 	"bytes"
 	"github.com/pkg/errors"
 	"strings"
+	"sync"
 )
 
 // LineHandlerFunc describes a function that is able to consume a log line
@@ -40,6 +41,7 @@ type BaseLogParser struct {
 	buf         *bytes.Buffer
 	bufReader   *bufio.Scanner
 	lineHandler LineHandlerFunc
+	mutex       *sync.Mutex
 }
 
 // NewBaseLogParser creates a new log parser that uses the provided line handler
@@ -47,12 +49,15 @@ func NewBaseLogParser(lineHandler LineHandlerFunc) *BaseLogParser {
 	obj := &BaseLogParser{
 		buf:         &bytes.Buffer{},
 		lineHandler: lineHandler,
+		mutex:       &sync.Mutex{},
 	}
 	return obj
 }
 
 // HandleData is invoked for each new buffer of data, see docs of interface type
 func (lp *BaseLogParser) HandleData(data []byte) error {
+	lp.mutex.Lock()
+
 	if data != nil {
 		lp.buf.Write(data)
 	}
@@ -64,16 +69,20 @@ func (lp *BaseLogParser) HandleData(data []byte) error {
 			consumedData = true
 			err := lp.lineHandler(line)
 			if err != nil {
+				lp.mutex.Unlock()
 				return errors.Wrap(err, "Couldn't decode buffer")
 			}
 		} else {
+			lp.mutex.Unlock()
 			return errors.New("Buffer contained '\\n' but no line could be read?")
 		}
 	}
 
 	if consumedData {
+		lp.mutex.Unlock()
 		return lp.HandleData(nil)
 	}
 
+	lp.mutex.Unlock()
 	return nil
 }
