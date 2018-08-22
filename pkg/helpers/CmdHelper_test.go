@@ -87,7 +87,7 @@ func TestEcho(t *testing.T) {
 	}
 	handlerB := NewCmdHandler("/bin/sh", []string{
 		"-c",
-		"echo foobar > /proc/self/fd/2",
+		"1>&2 echo foobar",
 	}, exitHandler, stdoutHandler, stderrHandler)
 	err = handlerB.Start()
 	if err != nil {
