@@ -28,6 +28,19 @@ import (
 // checkCertProperties validates a given certificate's properties using the openssl commandline utility
 func checkCertProperties(t *testing.T, cert *RSACertificate, serial, issuerCN, subjectCN, keyUsage, isCA, eku,
 	sans string) {
+	versionCmd := exec.Command("openssl", "version")
+	versionOut, err := versionCmd.Output()
+	if err != nil {
+		t.Error("Unexpected error when checking openssl version:", err)
+		return
+	}
+	opensslVersion := string(versionOut)
+	if strings.Contains(opensslVersion, "1.0.") {
+		// OpenSSL 1.0 does string formatting differently compared to openssl 1.1...
+		serial = strings.Replace(serial, " = ", "=", -1)
+		issuerCN = strings.Replace(issuerCN, " = ", "=", -1)
+		subjectCN = strings.Replace(subjectCN, " = ", "=", -1)
+	}
 	certCheckCmd := exec.Command("openssl", "x509", "-in", cert.CertPath, "-text", "-noout")
 	certCheckBuf, err := certCheckCmd.Output()
 	if err != nil {
@@ -76,7 +89,7 @@ func checkCertProperties(t *testing.T, cert *RSACertificate, serial, issuerCN, s
 					numChecked++
 				}
 			}
-			if strings.Contains(line, "Issuer: CN =") {
+			if strings.Contains(line, "Issuer: CN") {
 				if issuerCN != "" {
 					if !strings.Contains(line, issuerCN) {
 						t.Error("Certificate didn't have expected issuer CN")
@@ -87,7 +100,7 @@ func checkCertProperties(t *testing.T, cert *RSACertificate, serial, issuerCN, s
 			if strings.Contains(line, "Subject: ") {
 				if subjectCN != "" {
 					if !strings.Contains(line, subjectCN) {
-						t.Error("Certificate didn't have expected subject CN")
+						t.Errorf("Certificate didn't have expected subject CN: '%s' vs '%s'", line, subjectCN)
 					}
 					numChecked++
 				}
@@ -168,7 +181,7 @@ func checkCertKeyMatch(t *testing.T, cert *RSACertificate) {
 
 // TestSelfSignedCertProperties tests creation of a simple self-signed certificate and uses openssl to check it's
 // attributes
-func TestSelfSignedCertProperties(t *testing.T) {
+func TestSelfSignedCACertProperties(t *testing.T) {
 	tempDir := os.TempDir()
 	manager := NewManager(tempDir)
 	// Conserve entropy during unit tests (NEVER DO THIS IN DEV OR PROD)
@@ -188,7 +201,7 @@ func TestSelfSignedCertProperties(t *testing.T) {
 
 // TestSelfSignedCertMatch tests creation of a simple self-signed certificate and checks whether it's public and private
 // key are readable and match each other
-func TestSelfSignedCertMatch(t *testing.T) {
+func TestSelfSignedCACertMatch(t *testing.T) {
 	tempDir := os.TempDir()
 	manager := NewManager(tempDir)
 	// Conserve entropy during unit tests (NEVER DO THIS IN DEV OR PROD)
@@ -196,6 +209,45 @@ func TestSelfSignedCertMatch(t *testing.T) {
 	manager.keysize = 768
 	manager.UutMode()
 	cert, err := manager.NewSelfSignedCACert("Testcert", pkix.Name{
+		CommonName: "Testcert",
+	}, 123)
+	if err != nil {
+		t.Error("Unexpected error when generating cert", err)
+	}
+
+	checkCertKeyMatch(t, cert)
+}
+
+// TestSelfSignedCertProperties tests creation of a simple self-signed certificate and uses openssl to check it's
+// attributes
+func TestSelfSignedCertProperties(t *testing.T) {
+	tempDir := os.TempDir()
+	manager := NewManager(tempDir)
+	// Conserve entropy during unit tests (NEVER DO THIS IN DEV OR PROD)
+	// and generate extremely short certificates
+	manager.keysize = 768
+	manager.UutMode()
+	cert, err := manager.NewSelfSignedCert("Testcert", pkix.Name{
+		CommonName: "Testcert",
+	}, 123)
+	if err != nil {
+		t.Error("Unexpected error when generating cert", err)
+	}
+
+	checkCertProperties(t, cert, "Serial Number: 123 (0x7b)", "Issuer: CN = Testcert",
+		"Subject: CN = Testcert", "Digital Signature, Key Encipherment, Certificate Sign", "CA:FALSE", "", "")
+}
+
+// TestSelfSignedCertMatch tests creation of a simple self-signed certificate and checks whether it's public and private
+// key are readable and match each other
+func TestSelfSignedCertMatch(t *testing.T) {
+	tempDir := os.TempDir()
+	manager := NewManager(tempDir)
+	// Conserve entropy during unit tests (NEVER DO THIS IN DEV OR PROD)
+	// and generate extremely short certificates
+	manager.keysize = 768
+	manager.UutMode()
+	cert, err := manager.NewSelfSignedCert("Testcert", pkix.Name{
 		CommonName: "Testcert",
 	}, 123)
 	if err != nil {

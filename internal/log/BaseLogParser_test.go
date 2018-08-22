@@ -14,29 +14,23 @@
  * limitations under the License.
  */
 
-package etcd
+package log
 
 import (
-	"github.com/uubk/microkube/pkg/helpers"
-	"os/exec"
+	"github.com/pkg/errors"
 	"testing"
 )
 
-// Test whether etcd actually starts correctly
-func TestEtcdStartup(t *testing.T) {
-	done := false
-	exitHandler := func(success bool, exitError *exec.ExitError) {
-		if !done {
-			t.Fatal("etcd exit detected", exitError)
-		}
+// TestErrors tests whether we correctly bail in case of a parse error
+func TestErrors(t *testing.T) {
+	uut := NewBaseLogParser(func(s string) error {
+		return errors.New("testerror")
+	})
+	err := uut.HandleData([]byte("\n\n"))
+	if err == nil {
+		t.Fatal("Expected error missing!")
 	}
-	handler, _, _, _, err := helpers.StartHandlerForTest("etcd", "etcd", EtcdHandlerConstructor(2479), exitHandler, false, 1)
-	if err != nil {
-		t.Fatal("Test failed:", err)
-		return
-	}
-	done = true
-	for _, item := range handler {
-		item.Stop()
+	if err.Error() != "Couldn't decode buffer: testerror" {
+		t.Fatalf("Unexpected error: %s!", err)
 	}
 }

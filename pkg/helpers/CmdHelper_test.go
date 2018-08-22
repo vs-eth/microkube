@@ -21,6 +21,7 @@ import (
 	"os/exec"
 	"strings"
 	"testing"
+	"time"
 )
 
 // TestInvalidInvocation tests the invocation of a non-existent program
@@ -64,17 +65,21 @@ func TestEchoInvocation(t *testing.T) {
 // TestEcho tests running echo and comparing it's output
 func TestEcho(t *testing.T) {
 	exitWaiter := make(chan bool)
-	exitStdout := make(chan string, 1)
+	exitStdout := make(chan string, 10)
+	exitStderr := make(chan string, 10)
 	exitHandler := func(rc bool, error *exec.ExitError) {
 		exitWaiter <- rc
 	}
 	stdoutHandler := func(value []byte) {
 		exitStdout <- string(value)
 	}
+	stderrHandler := func(value []byte) {
+		exitStderr <- string(value)
+	}
 	handler := NewCmdHandler("/bin/bash", []string{
 		"-c",
-		"echo test",
-	}, exitHandler, stdoutHandler, nil)
+		"echo test ; >&2 echo foobar",
+	}, exitHandler, stdoutHandler, stderrHandler)
 	err := handler.Start()
 	if err != nil {
 		t.Error("Coudln't start program")
@@ -87,6 +92,10 @@ func TestEcho(t *testing.T) {
 	str := <-exitStdout
 	if strings.Trim(str, " \t\r\n") != "test" {
 		t.Error("Unexpected stdout: '", str, "'")
+	}
+	str = <-exitStderr
+	if strings.Trim(str, " \t\r\n") != "foobar" {
+		t.Error("Unexpected stderr: '", str, "'")
 	}
 }
 
@@ -108,5 +117,55 @@ func TestAllBinariesPresent(t *testing.T) {
 		if !info.Mode().IsRegular() {
 			t.Fatal(item + "isn't a regular file")
 		}
+	}
+}
+
+// TestErrorReturn tests running a program with RC != 0
+func TestErrorReturn(t *testing.T) {
+	exitWaiter := make(chan bool)
+	exitHandler := func(rc bool, errorCode *exec.ExitError) {
+		if errorCode == nil {
+			t.Fatalf("Expected error missing")
+		}
+		exitWaiter <- rc
+	}
+	handler := NewCmdHandler("/bin/bash", []string{
+		"-c",
+		"exit -1",
+	}, exitHandler, nil, nil)
+	err := handler.Start()
+	if err != nil {
+		t.Error("Coudln't start program")
+		return
+	}
+	rc := <-exitWaiter
+	if rc {
+		t.Error("Unexpectedly successful return?")
+	}
+}
+
+// TestProcessKill tests whether killing the process works
+func TestProcessKill(t *testing.T) {
+	exitWaiter := make(chan bool)
+	exitHandler := func(rc bool, errorCode *exec.ExitError) {
+		exitWaiter <- rc
+	}
+	handler := NewCmdHandler("/bin/bash", []string{
+		"-c",
+		"sleep 120",
+	}, exitHandler, nil, nil)
+	err := handler.Start()
+	if err != nil {
+		t.Error("Coudln't start program")
+		return
+	}
+	// Wait two seconds which should be enough to start. This isn't exactly the best solution :/
+	time.Sleep(2 * time.Second)
+	// Kill the process
+	handler.Stop()
+
+	rc := <-exitWaiter
+	if rc {
+		t.Error("Unexpectedly successful return?")
 	}
 }
