@@ -25,13 +25,13 @@ import (
 	"time"
 )
 
-// FullMicrokubedIntegrationTest runs a full integration test, that is, it bootstraps a full cluster and waits until it
+// Test9IntegrationMicrokubed runs a full integration test, that is, it bootstraps a full cluster and waits until it
 // is healthy. This requires:
 //  - passwordless sudo
 //  - iptables rules that do not restrict the pod/service networks
 //  - access to the docker socket
 //  - Linux
-func TestIIntegrationMicrokubed(t *testing.T) {
+func Test9IntegrationMicrokubed(t *testing.T) {
 	logrus.SetLevel(logrus.WarnLevel)
 	obj := Microkubed{}
 
