@@ -36,7 +36,7 @@ before_install:
 - cd third_party && tar -xvf ../.deps/cni-plugins-amd64-v0.7.1.tgz && rm ../.deps/cni-plugins-amd64-v0.7.1.tgz && cd ..
 - go get golang.org/x/tools/cmd/cover
 - go get github.com/mattn/goveralls
-- apt update && apt install -y util-linux
+- sudo apt update && sudo apt install -y util-linux
 
 script:
 - go test -race -coverprofile=coverage.txt -covermode=atomic -run 'Test[^I][^n]' -v ./...
