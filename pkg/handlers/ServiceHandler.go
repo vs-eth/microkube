@@ -65,18 +65,29 @@ type ExecutionEnvironment struct {
 	// ExitHandler to notify on command exit
 	ExitHandler ExitHandler
 
-	EtcdClientPort            int
-	EtcdPeerPort              int
-	KubeApiPort               int
-	KubeNodeApiPort           int
+	// Etcd client port
+	EtcdClientPort int
+	// Etcd peer port
+	EtcdPeerPort int
+	// Kubernetes API port
+	KubeApiPort int
+	// Kubernetes API server port for node communication
+	KubeNodeApiPort int
+	// Kubernetes ControllerManager port
 	KubeControllerManagerPort int
-	KubeletHealthPort         int
-	KubeProxyHealthPort       int
-	KubeProxyMetricsPort      int
-	KubeSchedulerHealthPort   int
-	KubeSchedulerMetricsPort  int
+	// Kubelet health endpoint port
+	KubeletHealthPort int
+	// Kube-proxy health endpoint port
+	KubeProxyHealthPort int
+	// Kube-proxy metrics endpoint port
+	KubeProxyMetricsPort int
+	// Kube-scheduler health endpoint port
+	KubeSchedulerHealthPort int
+	// Kube-scheduler metrics endpoint port
+	KubeSchedulerMetricsPort int
 }
 
+// InitPorts initializes the ports in 'e' starting from 'base'
 func (e *ExecutionEnvironment) InitPorts(base int) {
 	e.EtcdClientPort = base
 	e.EtcdPeerPort = base + 1
@@ -90,7 +101,9 @@ func (e *ExecutionEnvironment) InitPorts(base int) {
 	e.KubeSchedulerMetricsPort = base + 9
 }
 
-func (e *ExecutionEnvironment) CopyPorts(o *ExecutionEnvironment) {
+// CopyInformationFromBase copies all ports, all addresses and the sudo method from 'o' to this structure
+func (e *ExecutionEnvironment) CopyInformationFromBase(o *ExecutionEnvironment) {
+	// Ports
 	e.EtcdClientPort = o.EtcdClientPort
 	e.EtcdPeerPort = o.EtcdPeerPort
 	e.KubeApiPort = o.KubeApiPort
@@ -101,4 +114,8 @@ func (e *ExecutionEnvironment) CopyPorts(o *ExecutionEnvironment) {
 	e.KubeProxyMetricsPort = o.KubeProxyMetricsPort
 	e.KubeSchedulerHealthPort = o.KubeSchedulerHealthPort
 	e.KubeSchedulerMetricsPort = o.KubeSchedulerMetricsPort
+
+	e.ListenAddress = o.ListenAddress
+	e.ServiceAddress = o.ServiceAddress
+	e.SudoMethod = o.SudoMethod
 }

@@ -60,11 +60,12 @@ func StartHandlerForTest(portbase int, name, binary string, constructor UUTConst
 		OutputHandler: outputHandler,
 		ExitHandler:   exitHandler,
 		Workdir:       tmpdir,
+		SudoMethod:    "sudo", // TODO: Make this nicer...
 	}
 	if execEnvArg == nil {
 		execEnv.InitPorts(portbase)
 	} else {
-		execEnv.CopyPorts(execEnvArg)
+		execEnv.CopyInformationFromBase(execEnvArg)
 	}
 
 	// UUT

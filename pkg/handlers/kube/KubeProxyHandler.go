@@ -18,11 +18,13 @@ package kube
 
 import (
 	"encoding/json"
+	"fmt"
 	"github.com/pkg/errors"
 	"github.com/uubk/microkube/pkg/handlers"
 	"github.com/uubk/microkube/pkg/helpers"
 	"github.com/uubk/microkube/pkg/pki"
 	"io"
+	"io/ioutil"
 	"path"
 	"strconv"
 )
@@ -102,4 +104,35 @@ func (handler *KubeProxyHandler) healthCheckFun(responseBin *io.ReadCloser) erro
 		return errors.Wrap(err, "kube-proxy is unhealthy!")
 	}
 	return nil
+}
+
+// kubeProxyConstructor is supposed to be only used for testing
+func kubeProxyConstructor(execEnv handlers.ExecutionEnvironment,
+	creds *pki.MicrokubeCredentials) ([]handlers.ServiceHandler, error) {
+
+	// Start apiserver (and etcd)
+	handlerList, _, _, err := helpers.StartHandlerForTest(-1, "kube-apiserver", "hyperkube",
+		kubeApiServerConstructor, execEnv.ExitHandler, false, 30, creds, &execEnv)
+	if err != nil {
+		return handlerList, fmt.Errorf("kube-apiserver startup prereq failed %s", err)
+	}
+
+	// Generate kubeconfig
+	tmpdir, err := ioutil.TempDir("", "microkube-unittests-kubeconfig")
+	if err != nil {
+		return handlerList, fmt.Errorf("tempdir creation failed: %s", err)
+	}
+	kubeconfig := path.Join(tmpdir, "kubeconfig")
+	err = CreateClientKubeconfig(execEnv, creds, kubeconfig, "127.0.0.1")
+	if err != nil {
+		return handlerList, fmt.Errorf("kubeconfig creation failed: %s", err)
+	}
+
+	handler, err := NewKubeProxyHandler(execEnv, creds, "1.0.0.0/1")
+	if err != nil {
+		return handlerList, fmt.Errorf("kubeProxy handler creation failed: %s", err)
+	}
+	handlerList = append(handlerList, handler)
+
+	return handlerList, nil
 }

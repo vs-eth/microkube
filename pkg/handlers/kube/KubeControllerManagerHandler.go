@@ -24,6 +24,7 @@ import (
 	"io"
 	"io/ioutil"
 	"path"
+	"strconv"
 	"strings"
 )
 
@@ -77,7 +78,7 @@ func NewControllerManagerHandler(execEnv handlers.ExecutionEnvironment, creds *p
 	}
 
 	obj.BaseServiceHandler = *handlers.NewHandler(execEnv.ExitHandler, obj.healthCheckFun,
-		"https://"+execEnv.ListenAddress.String()+":7000/healthz", obj.stop, obj.Start, creds.KubeCA, creds.KubeClient)
+		"https://"+execEnv.ListenAddress.String()+":"+strconv.Itoa(obj.kubeControllerManagerPort)+"/healthz", obj.stop, obj.Start, creds.KubeCA, creds.KubeClient)
 	return obj
 }
 
@@ -105,7 +106,7 @@ func (handler *ControllerManagerHandler) Start() error {
 		handler.kubeClusterCAKey,
 		"--enable-hostpath-provisioner",
 		"--secure-port",
-		"7000",
+		strconv.Itoa(handler.kubeControllerManagerPort),
 		"--kubeconfig",
 		handler.kubeconfig,
 		"--tls-cert-file",
@@ -114,6 +115,8 @@ func (handler *ControllerManagerHandler) Start() error {
 		handler.kubeServerKey,
 		"--service-account-private-key-file",
 		handler.kubeSvcKey,
+		"--port", // This is deprecated, but until it is removed it defaults to 10252
+		"0",
 	}, handler.BaseServiceHandler.HandleExit, handler.out, handler.out)
 	return handler.cmd.Start()
 }
@@ -135,14 +138,12 @@ func kubeControllerManagerConstructor(execEnv handlers.ExecutionEnvironment,
 	creds *pki.MicrokubeCredentials) ([]handlers.ServiceHandler, error) {
 
 	// Start apiserver (and etcd)
-	handlerList, otherCreds, _, err := helpers.StartHandlerForTest(-1, "kube-apiserver", "hyperkube",
+	handlerList, _, _, err := helpers.StartHandlerForTest(-1, "kube-apiserver", "hyperkube",
 		kubeApiServerConstructor, execEnv.ExitHandler, false, 30, creds, &execEnv)
 	if err != nil {
 		return handlerList, errors.Wrap(err, "kube-apiserver startup prereq failed")
 	}
-	if otherCreds != creds {
-		return handlerList, errors.Wrap(err, "two sets of credentials")
-	}
+
 	// Generate kubeconfig
 	tmpdir, err := ioutil.TempDir("", "microkube-unittests-kubeconfig")
 	if err != nil {

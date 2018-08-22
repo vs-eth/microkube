@@ -184,12 +184,9 @@ func (handler *KubeAPIServerHandler) healthCheckFun(responseBin *io.ReadCloser) 
 
 // kubeApiServerConstructor is supposed to be only used for testing
 func kubeApiServerConstructor(execEnv handlers.ExecutionEnvironment, creds *pki.MicrokubeCredentials) ([]handlers.ServiceHandler, error) {
-	handlerList, oCreds, _, err := helpers.StartHandlerForTest(-1, "etcd", "etcd", etcd.EtcdHandlerConstructor, execEnv.ExitHandler, false, 1, creds, &execEnv)
+	handlerList, _, _, err := helpers.StartHandlerForTest(-1, "etcd", "etcd", etcd.EtcdHandlerConstructor, execEnv.ExitHandler, false, 1, creds, &execEnv)
 	if err != nil {
 		return handlerList, errors.Wrap(err, "etcd startup prereq failed")
-	}
-	if oCreds != creds {
-		return handlerList, errors.Wrap(err, "two sets of credentials")
 	}
 	handlerList = append(handlerList, NewKubeAPIServerHandler(execEnv, creds, "127.0.0.0/16"))
 

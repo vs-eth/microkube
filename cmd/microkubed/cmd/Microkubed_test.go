@@ -22,6 +22,7 @@ import (
 	"github.com/uubk/microkube/internal/cmd"
 	"io/ioutil"
 	"testing"
+	"time"
 )
 
 // FullMicrokubedIntegrationTest runs a full integration test, that is, it bootstraps a full cluster and waits until it
@@ -49,6 +50,13 @@ func TestIntegrationMicrokubed(t *testing.T) {
 	obj.gracefulTerminationMode = false
 	obj.start()
 	obj.waitUntilNodeReady()
-	fmt.Println("All fine")
+	obj.enableHealthChecks()
+	// This should make all health checks execute once since they're on a ten second timer
+	time.Sleep(15 * time.Second)
 	// Cluster is running, node is healthy, we're done here
+	fmt.Println("All fine")
+
+	for _, item := range obj.serviceList {
+		item.handler.Stop()
+	}
 }

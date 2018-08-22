@@ -201,9 +201,8 @@ func (m *Microkubed) startEtcd() {
 			ExitHandler:   etcdExitHandler,
 			OutputHandler: etcdOutputHandler,
 			Workdir:       path.Join(m.baseDir, "etcddata"),
-			SudoMethod:    m.sudoMethod,
 		}
-		execEnv.CopyPorts(&m.baseExecEnv)
+		execEnv.CopyInformationFromBase(&m.baseExecEnv)
 		return etcd.NewEtcdHandler(execEnv, m.cred), nil
 	}, log2.NewETCDLogParser())
 	m.serviceHandlers = append(m.serviceHandlers, etcdHandler)
@@ -225,14 +224,11 @@ func (m *Microkubed) startKubeAPIServer() {
 			kubeAPIExitHandler handlers.ExitHandler) (handlers.ServiceHandler, error) {
 
 			execEnv := handlers.ExecutionEnvironment{
-				Binary:         m.hyperkubeBin,
-				ExitHandler:    kubeAPIExitHandler,
-				OutputHandler:  kubeAPIOutputHandler,
-				ListenAddress:  m.bindAddr,
-				ServiceAddress: m.serviceRangeIP,
-				SudoMethod:     m.sudoMethod,
+				Binary:        m.hyperkubeBin,
+				ExitHandler:   kubeAPIExitHandler,
+				OutputHandler: kubeAPIOutputHandler,
 			}
-			execEnv.CopyPorts(&m.baseExecEnv)
+			execEnv.CopyInformationFromBase(&m.baseExecEnv)
 			return kube.NewKubeAPIServerHandler(execEnv, m.cred, m.serviceRangeNet.String()), nil
 		}, log2.NewKubeLogParser("kube-api"))
 	m.serviceHandlers = append(m.serviceHandlers, kubeAPIHandler)
@@ -268,14 +264,11 @@ func (m *Microkubed) startKubeControllerManager() {
 			kubeCtrlMgrExitHandler handlers.ExitHandler) (handlers.ServiceHandler, error) {
 
 			execEnv := handlers.ExecutionEnvironment{
-				Binary:         m.hyperkubeBin,
-				ExitHandler:    kubeCtrlMgrExitHandler,
-				OutputHandler:  kubeCtrlMgrOutputHandler,
-				ListenAddress:  m.bindAddr,
-				ServiceAddress: m.serviceRangeIP,
-				SudoMethod:     m.sudoMethod,
+				Binary:        m.hyperkubeBin,
+				ExitHandler:   kubeCtrlMgrExitHandler,
+				OutputHandler: kubeCtrlMgrOutputHandler,
 			}
-			execEnv.CopyPorts(&m.baseExecEnv)
+			execEnv.CopyInformationFromBase(&m.baseExecEnv)
 			return kube.NewControllerManagerHandler(execEnv, m.cred, m.podRangeNet.String()), nil
 		}, log2.NewKubeLogParser("kube-controller-manager"))
 	m.serviceHandlers = append(m.serviceHandlers, kubeCtrlMgrHandler)
@@ -297,15 +290,12 @@ func (m *Microkubed) startKubeScheduler() {
 			kubeSchedExitHandler handlers.ExitHandler) (handlers.ServiceHandler, error) {
 
 			execEnv := handlers.ExecutionEnvironment{
-				Binary:         m.hyperkubeBin,
-				Workdir:        path.Join(m.baseDir, "kubesched"),
-				ExitHandler:    kubeSchedExitHandler,
-				OutputHandler:  kubeSchedOutputHandler,
-				ListenAddress:  m.bindAddr,
-				ServiceAddress: m.serviceRangeIP,
-				SudoMethod:     m.sudoMethod,
+				Binary:        m.hyperkubeBin,
+				Workdir:       path.Join(m.baseDir, "kubesched"),
+				ExitHandler:   kubeSchedExitHandler,
+				OutputHandler: kubeSchedOutputHandler,
 			}
-			execEnv.CopyPorts(&m.baseExecEnv)
+			execEnv.CopyInformationFromBase(&m.baseExecEnv)
 			return kube.NewKubeSchedulerHandler(execEnv, m.cred)
 		}, log2.NewKubeLogParser("kube-scheduler"))
 	m.serviceHandlers = append(m.serviceHandlers, kubeSchedHandler)
@@ -327,15 +317,12 @@ func (m *Microkubed) startKubelet() {
 			kubeletExitHandler handlers.ExitHandler) (handlers.ServiceHandler, error) {
 
 			execEnv := handlers.ExecutionEnvironment{
-				Binary:         m.hyperkubeBin,
-				Workdir:        path.Join(m.baseDir, "kube"),
-				ExitHandler:    kubeletExitHandler,
-				OutputHandler:  kubeletOutputHandler,
-				ListenAddress:  m.bindAddr,
-				ServiceAddress: m.serviceRangeIP,
-				SudoMethod:     m.sudoMethod,
+				Binary:        m.hyperkubeBin,
+				Workdir:       path.Join(m.baseDir, "kube"),
+				ExitHandler:   kubeletExitHandler,
+				OutputHandler: kubeletOutputHandler,
 			}
-			execEnv.CopyPorts(&m.baseExecEnv)
+			execEnv.CopyInformationFromBase(&m.baseExecEnv)
 			return kube.NewKubeletHandler(execEnv, m.cred)
 		}, log2.NewKubeLogParser("kubelet"))
 	m.serviceHandlers = append(m.serviceHandlers, kubeletHandler)
@@ -356,15 +343,12 @@ func (m *Microkubed) startKubeProxy() {
 		func(output handlers.OutputHandler, exit handlers.ExitHandler) (handlers.ServiceHandler, error) {
 
 			execEnv := handlers.ExecutionEnvironment{
-				Binary:         m.hyperkubeBin,
-				Workdir:        path.Join(m.baseDir, "kube"),
-				ExitHandler:    exit,
-				OutputHandler:  output,
-				ListenAddress:  m.bindAddr,
-				ServiceAddress: m.serviceRangeIP,
-				SudoMethod:     m.sudoMethod,
+				Binary:        m.hyperkubeBin,
+				Workdir:       path.Join(m.baseDir, "kube"),
+				ExitHandler:   exit,
+				OutputHandler: output,
 			}
-			execEnv.CopyPorts(&m.baseExecEnv)
+			execEnv.CopyInformationFromBase(&m.baseExecEnv)
 			return kube.NewKubeProxyHandler(execEnv, m.cred, m.clusterIPRange.String())
 		}, log2.NewKubeLogParser("kube-proxy"))
 	defer kubeProxyHandler.Stop()
@@ -480,9 +464,12 @@ func (m *Microkubed) start() {
 	if err != nil {
 		log.WithError(err).Fatal("Couldn't init credentials!")
 	}
+	m.baseExecEnv.ListenAddress = m.bindAddr
+	m.baseExecEnv.ServiceAddress = m.serviceRangeIP
+	m.baseExecEnv.SudoMethod = m.sudoMethod
+	m.baseExecEnv.InitPorts(7000)
 
 	m.findBinaries()
-	m.baseExecEnv.InitPorts(7000)
 
 	m.startEtcd()
 	m.startKubeAPIServer()

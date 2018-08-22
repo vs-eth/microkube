@@ -18,6 +18,7 @@ package kube
 
 import (
 	"errors"
+	"fmt"
 	"github.com/uubk/microkube/pkg/handlers"
 	"github.com/uubk/microkube/pkg/helpers"
 	"github.com/uubk/microkube/pkg/pki"
@@ -91,4 +92,35 @@ func (handler *KubeSchedulerHandler) healthCheckFun(responseBin *io.ReadCloser) 
 		return errors.New("Health != ok: " + string(str))
 	}
 	return nil
+}
+
+// kubeSchedulerConstructor is supposed to be only used for testing
+func kubeSchedulerConstructor(execEnv handlers.ExecutionEnvironment,
+	creds *pki.MicrokubeCredentials) ([]handlers.ServiceHandler, error) {
+
+	// Start apiserver (and etcd)
+	handlerList, _, _, err := helpers.StartHandlerForTest(-1, "kube-apiserver", "hyperkube",
+		kubeApiServerConstructor, execEnv.ExitHandler, false, 30, creds, &execEnv)
+	if err != nil {
+		return handlerList, fmt.Errorf("kube-apiserver startup prereq failed %s", err)
+	}
+
+	// Generate kubeconfig
+	tmpdir, err := ioutil.TempDir("", "microkube-unittests-kubeconfig")
+	if err != nil {
+		return handlerList, fmt.Errorf("tempdir creation failed: %s", err)
+	}
+	kubeconfig := path.Join(tmpdir, "kubeconfig")
+	err = CreateClientKubeconfig(execEnv, creds, kubeconfig, "127.0.0.1")
+	if err != nil {
+		return handlerList, fmt.Errorf("kubeconfig creation failed: %s", err)
+	}
+
+	handler, err := NewKubeSchedulerHandler(execEnv, creds)
+	if err != nil {
+		return handlerList, fmt.Errorf("kube scheduler handler creation failed: %s", err)
+	}
+	handlerList = append(handlerList, handler)
+
+	return handlerList, nil
 }
