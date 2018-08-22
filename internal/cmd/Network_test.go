@@ -92,3 +92,69 @@ func TestAddressFallback(t *testing.T) {
 		t.Fatal("Invalid address returned!")
 	}
 }
+
+// TestStandardIPRanges tests whether parsing the default IP ranges works
+func TestStandardIPRanges(t *testing.T) {
+	logrus.SetLevel(logrus.FatalLevel)
+	podRangeNet, serviceRangeNet, clusterIPRange, _, serviceRangeIP, err := CalculateIPRanges("10.233.42.1/24",
+		"10.233.43.1/24")
+	if err != nil {
+		t.Fatalf("Unexpected error: %s", err)
+	}
+
+	if podRangeNet.String() != "10.233.42.0/24" {
+		t.Fatalf("Pod range was parsed incorrectly %s", podRangeNet.String())
+	}
+	if serviceRangeNet.String() != "10.233.43.0/24" {
+		t.Fatalf("Service range was parsed incorrectly %s", serviceRangeNet.String())
+	}
+	if serviceRangeIP.String() != "10.233.43.1" {
+		t.Fatalf("Service IP was parsed incorrectly %s", serviceRangeIP.String())
+	}
+	if clusterIPRange.String() != "10.233.42.1/23" {
+		t.Fatalf("Cluster IP range was parsed incorrectly %s", clusterIPRange.String())
+	}
+}
+
+// TestDiscontinousIPRanges tests whether parsing two discontinous IP ranges works and results in a huge clusternet
+func TestDiscontinousIPRanges(t *testing.T) {
+	logrus.SetLevel(logrus.FatalLevel)
+	podRangeNet, serviceRangeNet, clusterIPRange, _, serviceRangeIP, err := CalculateIPRanges("192.168.1.1/24",
+		"192.168.15.1/24")
+	if err != nil {
+		t.Fatalf("Unexpected error: %s", err)
+	}
+
+	if podRangeNet.String() != "192.168.1.0/24" {
+		t.Fatalf("Pod range was parsed incorrectly %s", podRangeNet.String())
+	}
+	if serviceRangeNet.String() != "192.168.15.0/24" {
+		t.Fatalf("Service range was parsed incorrectly %s", serviceRangeNet.String())
+	}
+	if serviceRangeIP.String() != "192.168.15.1" {
+		t.Fatalf("Service IP was parsed incorrectly %s", serviceRangeIP.String())
+	}
+	if clusterIPRange.String() != "192.168.1.1/20" {
+		t.Fatalf("Cluster IP range was parsed incorrectly %s", clusterIPRange.String())
+	}
+}
+
+// TestIPParseError tests whether parsing invalid IP ranges returns the correct error codes
+func TestIPParseError(t *testing.T) {
+	logrus.SetLevel(logrus.FatalLevel)
+	_, _, _, _, _, err := CalculateIPRanges("192.168.1.1/33", "foobar")
+	if err == nil {
+		t.Fatalf("Expected error missing")
+	}
+	if err.Error() != "invalid CIDR address: 192.168.1.1/33" {
+		t.Fatalf("Unexpected error: %s", err)
+	}
+
+	_, _, _, _, _, err = CalculateIPRanges("192.168.1.1/31", "foobar")
+	if err == nil {
+		t.Fatalf("Expected error missing")
+	}
+	if err.Error() != "invalid CIDR address: foobar" {
+		t.Fatalf("Unexpected error: %s", err)
+	}
+}

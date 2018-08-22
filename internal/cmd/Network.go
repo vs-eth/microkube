@@ -21,6 +21,64 @@ import (
 	"net"
 )
 
+// CalculateIPRanges takes the pod and service range as strings and calculates the required networks
+// for Microkube from it
+func CalculateIPRanges(podRange, serviceRange string) (pod, service, cluster *net.IPNet,
+	bind, firstSVC net.IP, errRet error) {
+	// Parse commandline arguments
+	podRangeIP, podRangeNet, err := net.ParseCIDR(podRange)
+	if err != nil {
+		log.WithFields(log.Fields{
+			"range": podRange,
+		}).WithError(err).Warn("Couldn't parse pod CIDR range")
+		return nil, nil, nil, nil, nil, err
+	}
+	serviceRangeIP, serviceRangeNet, err := net.ParseCIDR(serviceRange)
+	if err != nil {
+		log.WithFields(log.Fields{
+			"range": podRange,
+		}).WithError(err).Warn("Couldn't parse service CIDR range")
+		return nil, nil, nil, nil, nil, err
+	}
+
+	// Find address to bind to
+	bindAddr := FindBindAddress()
+
+	// To combine pod and service range to form the cluster range, find first diverging bit
+	baseOffset := 0
+	serviceBelowPod := false
+	for idx, octet := range serviceRangeNet.IP {
+		if podRangeNet.IP[idx] != octet {
+			// This octet diverges -> find bit
+			baseOffset = idx * 8
+			for mask := byte(0x80); mask > 0; mask /= 2 {
+				baseOffset++
+				if (podRangeNet.IP[idx] & mask) != (octet & mask) {
+					// Found it
+					serviceBelowPod = octet < podRangeNet.IP[idx]
+					break
+				}
+			}
+			baseOffset--
+		}
+	}
+	clusterIPRange := &net.IPNet{
+		IP: podRangeIP,
+	}
+	if serviceBelowPod {
+		clusterIPRange.IP = serviceRangeIP
+	}
+	clusterIPRange.Mask = net.CIDRMask(baseOffset, 32)
+	log.WithFields(log.Fields{
+		"podRange":     podRangeNet.String(),
+		"serviceRange": serviceRangeNet.String(),
+		"clusterRange": clusterIPRange.String(),
+		"hostIP":       bindAddr,
+	}).Info("IP ranges calculated")
+
+	return podRangeNet, serviceRangeNet, clusterIPRange, bindAddr, serviceRangeIP, nil
+}
+
 // FindBindAddress tries to find a private IPv4 address from some local interface that can be used to bind services to it
 func FindBindAddress() net.IP {
 	ifaces, err := net.Interfaces()

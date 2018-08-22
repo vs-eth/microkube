@@ -67,7 +67,7 @@ type Microkubed struct {
 	// First IP in service network, reserved for Kubernetes API Server service
 	serviceRangeIP net.IP
 	// CIDR of pod and service network combined
-	clusterIPRange net.IPNet
+	clusterIPRange *net.IPNet
 	// Some host-local address that the services will bind to
 	bindAddr net.IP
 
@@ -108,7 +108,7 @@ func (m *Microkubed) handleArgs() {
 		log.WithError(err).WithField("extraBinDir", *extraBinDir).Fatal("Couldn't expand extraBin directory")
 	}
 
-	err = m.calculateIPRanges(*podRange, *serviceRange)
+	m.podRangeNet, m.serviceRangeNet, m.clusterIPRange, m.bindAddr, m.serviceRangeIP, err = cmd.CalculateIPRanges(*podRange, *serviceRange)
 	if err != nil {
 		log.Fatal("IP calculation returned error, aborting now!")
 	}
@@ -118,65 +118,6 @@ func (m *Microkubed) handleArgs() {
 		log.WithError(err).WithField("sudo", *sudoMethod).Fatal("Sudo method is not a regular file!")
 	}
 	m.sudoMethod = *sudoMethod
-}
-
-// Calculate all IP ranges from the command line strings
-func (m *Microkubed) calculateIPRanges(podRange, serviceRange string) error {
-	var podRangeIP, serviceRangeIP net.IP
-	var err error
-
-	// Parse commandline arguments
-	podRangeIP, m.podRangeNet, err = net.ParseCIDR(podRange)
-	if err != nil {
-		log.WithFields(log.Fields{
-			"range": podRange,
-		}).WithError(err).Warn("Couldn't parse pod CIDR range")
-		return err
-	}
-	m.serviceRangeIP, m.serviceRangeNet, err = net.ParseCIDR(serviceRange)
-	if err != nil {
-		log.WithFields(log.Fields{
-			"range": podRange,
-		}).WithError(err).Warn("Couldn't parse service CIDR range")
-		return err
-	}
-
-	// Find address to bind to
-	m.bindAddr = cmd.FindBindAddress()
-
-	// To combine pod and service range to form the cluster range, find first diverging bit
-	baseOffset := 0
-	serviceBelowPod := false
-	for idx, octet := range m.serviceRangeNet.IP {
-		if m.podRangeNet.IP[idx] != octet {
-			// This octet diverges -> find bit
-			baseOffset = idx * 8
-			for mask := byte(0x80); mask > 0; mask /= 2 {
-				baseOffset++
-				if (m.podRangeNet.IP[idx] & mask) != (octet & mask) {
-					// Found it
-					serviceBelowPod = octet < m.podRangeNet.IP[idx]
-					break
-				}
-			}
-			baseOffset--
-		}
-	}
-	m.clusterIPRange = net.IPNet{
-		IP: podRangeIP,
-	}
-	if serviceBelowPod {
-		m.clusterIPRange.IP = serviceRangeIP
-	}
-	m.clusterIPRange.Mask = net.CIDRMask(baseOffset, 32)
-	log.WithFields(log.Fields{
-		"podRange":     m.podRangeNet.String(),
-		"serviceRange": m.serviceRangeNet.String(),
-		"clusterRange": m.clusterIPRange.String(),
-		"hostIP":       m.bindAddr,
-	}).Info("IP ranges calculated")
-
-	return nil
 }
 
 // Create directories and copy CNI plugins if appropriate
