@@ -77,14 +77,21 @@ func TestEcho(t *testing.T) {
 	stderrHandler := func(value []byte) {
 		exitStderr <- string(value)
 	}
-	handler := NewCmdHandler("/bin/sh", []string{
+	handlerA := NewCmdHandler("/bin/sh", []string{
 		"-c",
-		"echo test ; 1>&2 echo foobar",
+		"echo test",
 	}, exitHandler, stdoutHandler, stderrHandler)
-	err := handler.Start()
+	err := handlerA.Start()
 	if err != nil {
-		t.Error("Coudln't start program")
-		return
+		t.Fatalf("Couldn't start program")
+	}
+	handlerB := NewCmdHandler("/bin/sh", []string{
+		"-c",
+		"1>&2 echo foobar",
+	}, exitHandler, stdoutHandler, stderrHandler)
+	err = handlerB.Start()
+	if err != nil {
+		t.Fatalf("Couldn't start program")
 	}
 	ctx, _ := context.WithTimeout(context.Background(), 2*time.Second)
 	exitChecked, stdoutChecked, stderrChecked := false, false, false
