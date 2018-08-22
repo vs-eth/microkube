@@ -75,7 +75,7 @@ func TestEcho(t *testing.T) {
 	}
 	handler := NewCmdHandler("/bin/bash", []string{
 		"-c",
-		"echo test ; >&2 echo foobar",
+		"echo test",
 	}, exitHandler, stdoutHandler, stdoutHandler)
 	err := handler.Start()
 	if err != nil {
@@ -103,22 +103,7 @@ func TestEcho(t *testing.T) {
 			break
 		}
 	}
-	// At this point, there might be still something in the output channel buffer
-	for {
-		done := false
-		select {
-		case str := <-exitStdout:
-			stdout = stdout + strings.Trim(str, " \t\r\n") + " "
-			stdoutChecked = true
-		default:
-			done = true
-		}
-		if done {
-			break
-		}
-	}
-
-	if !strings.Contains(stdout, "test") || !strings.Contains(stdout, "foobar") {
+	if !strings.Contains(stdout, "test") {
 		t.Fatal("Unexpected stdout: '", stdout, "'")
 	}
 	if !exitChecked || !stdoutChecked {
