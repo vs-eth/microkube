@@ -35,9 +35,9 @@ before_install:
 
 script:
 - go test -race -coverprofile=cover1 -covermode=atomic -run 'Test[^I][^n]' -v ./...
-- rm -Rf /tmp/microkube*
 - killall etcd || /bin/true
 - killall hyperkube || /bin/true
+- rm -Rf /tmp/microkube*
 - go test -coverprofile=cover2 -covermode=atomic -run 'TestIn' -v ./...
 
 install:
