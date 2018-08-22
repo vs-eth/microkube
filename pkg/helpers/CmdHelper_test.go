@@ -77,9 +77,9 @@ func TestEcho(t *testing.T) {
 	stderrHandler := func(value []byte) {
 		exitStderr <- string(value)
 	}
-	handler := NewCmdHandler("/bin/bash", []string{
+	handler := NewCmdHandler("/bin/sh", []string{
 		"-c",
-		"echo test ; >&2 echo foobar",
+		"echo test ; 1>&2 echo foobar",
 	}, exitHandler, stdoutHandler, stderrHandler)
 	err := handler.Start()
 	if err != nil {
