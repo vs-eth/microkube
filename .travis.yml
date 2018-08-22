@@ -34,7 +34,7 @@ before_install:
 - docker run --rm -v /usr/bin:/target jpetazzo/nsenter
 
 script:
-- go test -race -coverprofile=cover1 -covermode=atomic -run 'Test[^I][^n]' -v ./...
+- go test -race -coverprofile=cover1 -covermode=atomic -run 'Test[^I][^I]' -v ./...
 - sudo killall etcd || /bin/true
 - sudo killall hyperkube || /bin/true
 - sudo rm -Rf /tmp/microkube* || /bin/true

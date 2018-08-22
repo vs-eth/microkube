@@ -31,7 +31,7 @@ import (
 //  - iptables rules that do not restrict the pod/service networks
 //  - access to the docker socket
 //  - Linux
-func TestIntegrationMicrokubed(t *testing.T) {
+func TestIIntegrationMicrokubed(t *testing.T) {
 	logrus.SetLevel(logrus.WarnLevel)
 	obj := Microkubed{}
 
