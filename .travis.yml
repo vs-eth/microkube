@@ -34,10 +34,12 @@ before_install:
 - docker run --rm -v /usr/bin:/target jpetazzo/nsenter
 
 script:
-- go test -race -coverprofile=coverage.txt -covermode=atomic -v ./...
+- go test -race -coverprofile=cover1 -covermode=atomic -run 'Test[^I][^n]' -v ./...
+- go test -race -coverprofile=cover2 -covermode=atomic -run 'TestIn' -v ./...
 
 install:
 - glide i
 
 after_success:
+- cat cover1 cover2 > coverage.txt
 - bash <(curl -s https://codecov.io/bash)
