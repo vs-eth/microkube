@@ -16,13 +16,16 @@
 
 package handlers
 
-import "os/exec"
+import (
+	"net"
+	"os/exec"
+)
 
 // ExitHandler describes a function that is called when a process exits.
 type ExitHandler func(success bool, exitError *exec.ExitError)
 
-// OutputHander describes a function that is called whenever a process outputs something
-type OutputHander func(output []byte)
+// OutputHandler describes a function that is called whenever a process outputs something
+type OutputHandler func(output []byte)
 
 // HealthMessage describes health check results from services
 type HealthMessage struct {
@@ -43,4 +46,76 @@ type ServiceHandler interface {
 	// Stop stops this service and all associated goroutines (e.g. health checks). If it as already stopped,
 	// this method does nothing.
 	Stop()
+}
+
+// ExecutionEnvironment describes the environment to execute something in
+type ExecutionEnvironment struct {
+	// Binary contains the full path to the program to run
+	Binary string
+	// SudoMethod contains the binary to execute when running programs as root (sudo, pkexec, ...)
+	SudoMethod string
+	// Workdir contains a path where an application may store it's data
+	Workdir string
+	// ListenAddress is the address to bind exposed services to
+	ListenAddress net.IP
+	// ServiceAddress is the first address in the k8s service network
+	ServiceAddress net.IP
+	// OutputHandler to pass command output to
+	OutputHandler OutputHandler
+	// ExitHandler to notify on command exit
+	ExitHandler ExitHandler
+
+	// Etcd client port
+	EtcdClientPort int
+	// Etcd peer port
+	EtcdPeerPort int
+	// Kubernetes API port
+	KubeApiPort int
+	// Kubernetes API server port for node communication
+	KubeNodeApiPort int
+	// Kubernetes ControllerManager port
+	KubeControllerManagerPort int
+	// Kubelet health endpoint port
+	KubeletHealthPort int
+	// Kube-proxy health endpoint port
+	KubeProxyHealthPort int
+	// Kube-proxy metrics endpoint port
+	KubeProxyMetricsPort int
+	// Kube-scheduler health endpoint port
+	KubeSchedulerHealthPort int
+	// Kube-scheduler metrics endpoint port
+	KubeSchedulerMetricsPort int
+}
+
+// InitPorts initializes the ports in 'e' starting from 'base'
+func (e *ExecutionEnvironment) InitPorts(base int) {
+	e.EtcdClientPort = base
+	e.EtcdPeerPort = base + 1
+	e.KubeApiPort = base + 2
+	e.KubeNodeApiPort = base + 3
+	e.KubeControllerManagerPort = base + 4
+	e.KubeletHealthPort = base + 5
+	e.KubeProxyHealthPort = base + 6
+	e.KubeProxyMetricsPort = base + 7
+	e.KubeSchedulerHealthPort = base + 8
+	e.KubeSchedulerMetricsPort = base + 9
+}
+
+// CopyInformationFromBase copies all ports, all addresses and the sudo method from 'o' to this structure
+func (e *ExecutionEnvironment) CopyInformationFromBase(o *ExecutionEnvironment) {
+	// Ports
+	e.EtcdClientPort = o.EtcdClientPort
+	e.EtcdPeerPort = o.EtcdPeerPort
+	e.KubeApiPort = o.KubeApiPort
+	e.KubeNodeApiPort = o.KubeNodeApiPort
+	e.KubeControllerManagerPort = o.KubeControllerManagerPort
+	e.KubeletHealthPort = o.KubeletHealthPort
+	e.KubeProxyHealthPort = o.KubeProxyHealthPort
+	e.KubeProxyMetricsPort = o.KubeProxyMetricsPort
+	e.KubeSchedulerHealthPort = o.KubeSchedulerHealthPort
+	e.KubeSchedulerMetricsPort = o.KubeSchedulerMetricsPort
+
+	e.ListenAddress = o.ListenAddress
+	e.ServiceAddress = o.ServiceAddress
+	e.SudoMethod = o.SudoMethod
 }

@@ -18,11 +18,14 @@ package kube
 
 import (
 	"errors"
+	"fmt"
 	"github.com/uubk/microkube/pkg/handlers"
 	"github.com/uubk/microkube/pkg/helpers"
+	"github.com/uubk/microkube/pkg/pki"
 	"io"
 	"io/ioutil"
 	"path"
+	"strconv"
 	"strings"
 )
 
@@ -39,25 +42,25 @@ type KubeSchedulerHandler struct {
 	// Path to scheduler config (!= kubeconfig, replacement for commandline flags)
 	config string
 	// Output handler
-	out handlers.OutputHander
+	out handlers.OutputHandler
 }
 
 // NewKubeSchedulerHandler creates a KubeSchedulerHandler from the arguments provided
-func NewKubeSchedulerHandler(binary, root, kubeconfig string, out handlers.OutputHander, exit handlers.ExitHandler) (*KubeSchedulerHandler, error) {
+func NewKubeSchedulerHandler(execEnv handlers.ExecutionEnvironment, creds *pki.MicrokubeCredentials) (*KubeSchedulerHandler, error) {
 	obj := &KubeSchedulerHandler{
-		binary:     binary,
+		binary:     execEnv.Binary,
 		cmd:        nil,
-		out:        out,
-		kubeconfig: kubeconfig,
-		config:     path.Join(root, "kube-scheduler.cfg"),
+		out:        execEnv.OutputHandler,
+		kubeconfig: creds.Kubeconfig,
+		config:     path.Join(execEnv.Workdir, "kube-scheduler.cfg"),
 	}
 
-	err := CreateKubeSchedulerConfig(obj.config, kubeconfig)
+	err := CreateKubeSchedulerConfig(obj.config, creds.Kubeconfig, execEnv)
 	if err != nil {
 		return nil, err
 	}
 
-	obj.BaseServiceHandler = *handlers.NewHandler(exit, obj.healthCheckFun, "http://localhost:10251/healthz",
+	obj.BaseServiceHandler = *handlers.NewHandler(execEnv.ExitHandler, obj.healthCheckFun, "http://localhost:"+strconv.Itoa(execEnv.KubeSchedulerHealthPort)+"/healthz",
 		obj.stop, obj.Start, nil, nil)
 	return obj, nil
 }
@@ -89,4 +92,35 @@ func (handler *KubeSchedulerHandler) healthCheckFun(responseBin *io.ReadCloser) 
 		return errors.New("Health != ok: " + string(str))
 	}
 	return nil
+}
+
+// kubeSchedulerConstructor is supposed to be only used for testing
+func kubeSchedulerConstructor(execEnv handlers.ExecutionEnvironment,
+	creds *pki.MicrokubeCredentials) ([]handlers.ServiceHandler, error) {
+
+	// Start apiserver (and etcd)
+	handlerList, _, _, err := helpers.StartHandlerForTest(-1, "kube-apiserver", "hyperkube",
+		kubeApiServerConstructor, execEnv.ExitHandler, false, 30, creds, &execEnv)
+	if err != nil {
+		return handlerList, fmt.Errorf("kube-apiserver startup prereq failed %s", err)
+	}
+
+	// Generate kubeconfig
+	tmpdir, err := ioutil.TempDir("", "microkube-unittests-kubeconfig")
+	if err != nil {
+		return handlerList, fmt.Errorf("tempdir creation failed: %s", err)
+	}
+	kubeconfig := path.Join(tmpdir, "kubeconfig")
+	err = CreateClientKubeconfig(execEnv, creds, kubeconfig, "127.0.0.1")
+	if err != nil {
+		return handlerList, fmt.Errorf("kubeconfig creation failed: %s", err)
+	}
+
+	handler, err := NewKubeSchedulerHandler(execEnv, creds)
+	if err != nil {
+		return handlerList, fmt.Errorf("kube scheduler handler creation failed: %s", err)
+	}
+	handlerList = append(handlerList, handler)
+
+	return handlerList, nil
 }

@@ -36,7 +36,8 @@ func TestAPIServerStartup(t *testing.T) {
 			t.Fatal("exit detected", exitError)
 		}
 	}
-	handler, _, _, _, err := helpers.StartHandlerForTest("kube-apiserver", "hyperkube", kubeApiServerConstructor, exitHandler, false, 30)
+	handler, _, _, err := helpers.StartHandlerForTest(30100, "kube-apiserver", "hyperkube",
+		kubeApiServerConstructor, exitHandler, false, 30, nil, nil)
 	if err != nil {
 		t.Fatal("Test failed:", err)
 		return
@@ -55,7 +56,8 @@ func TestAPIServerKubeconfig(t *testing.T) {
 			t.Fatal("exit detected", exitError)
 		}
 	}
-	handlers, ca, client, _, err := helpers.StartHandlerForTest("kube-apiserver", "hyperkube", kubeApiServerConstructor, exitHandler, false, 30)
+	handlers, creds, execEnv, err := helpers.StartHandlerForTest(30100, "kube-apiserver", "hyperkube",
+		kubeApiServerConstructor, exitHandler, false, 30, nil, nil)
 	if err != nil {
 		t.Fatal("Test failed:", err)
 		return
@@ -74,7 +76,7 @@ func TestAPIServerKubeconfig(t *testing.T) {
 		errors.Wrap(err, "tempdir creation failed")
 	}
 	kubeconfig := path.Join(tmpdir, "kubeconfig")
-	err = CreateClientKubeconfig(ca, client, kubeconfig, "127.0.0.1")
+	err = CreateClientKubeconfig(*execEnv, creds, kubeconfig, "127.0.0.1")
 	if err != nil {
 		t.Error("kubeconfig creation failed", err)
 		return

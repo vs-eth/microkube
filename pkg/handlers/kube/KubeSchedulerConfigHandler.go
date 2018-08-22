@@ -18,19 +18,24 @@ package kube
 
 import (
 	"github.com/pkg/errors"
+	"github.com/uubk/microkube/pkg/handlers"
 	"os"
 	"text/template"
 )
 
 // kubeSchedulerConfigData contains data used when templating a kube scheduler config. For internal use only.
 type kubeSchedulerConfigData struct {
-	Kubeconfig string
+	Kubeconfig               string
+	KubeSchedulerHealthPort  int
+	KubeSchedulerMetricsPort int
 }
 
 // CreateKubeSchedulerConfig creates a proxy config with most things hardcoded and stores it in 'path'
-func CreateKubeSchedulerConfig(path, kubeconfig string) error {
+func CreateKubeSchedulerConfig(path, kubeconfig string, execEnv handlers.ExecutionEnvironment) error {
 	data := kubeSchedulerConfigData{
-		Kubeconfig: kubeconfig,
+		Kubeconfig:               kubeconfig,
+		KubeSchedulerHealthPort:  execEnv.KubeSchedulerHealthPort,
+		KubeSchedulerMetricsPort: execEnv.KubeSchedulerMetricsPort,
 	}
 	tmplStr := `algorithmSource:
   provider: DefaultProvider
@@ -46,7 +51,7 @@ enableContentionProfiling: false
 enableProfiling: false
 failureDomains: kubernetes.io/hostname,failure-domain.beta.kubernetes.io/zone,failure-domain.beta.kubernetes.io/region
 hardPodAffinitySymmetricWeight: 1
-healthzBindAddress: 127.0.0.1:10251
+healthzBindAddress: 127.0.0.1:{{ .KubeSchedulerHealthPort }}
 kind: KubeSchedulerConfiguration
 leaderElection:
   leaderElect: true
@@ -56,7 +61,7 @@ leaderElection:
   renewDeadline: 10s
   resourceLock: endpoints
   retryPeriod: 2s
-metricsBindAddress: 127.0.0.1:10251
+metricsBindAddress: 127.0.0.1:{{ .KubeSchedulerMetricsPort }}
 schedulerName: default-scheduler
 `
 	tmpl, err := template.New("KubeScheduler").Parse(tmplStr)

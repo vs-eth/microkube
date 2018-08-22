@@ -17,6 +17,7 @@
 package helpers
 
 import (
+	"context"
 	"os"
 	"os/exec"
 	"strings"
@@ -66,36 +67,48 @@ func TestEchoInvocation(t *testing.T) {
 func TestEcho(t *testing.T) {
 	exitWaiter := make(chan bool)
 	exitStdout := make(chan string, 10)
-	exitStderr := make(chan string, 10)
 	exitHandler := func(rc bool, error *exec.ExitError) {
 		exitWaiter <- rc
 	}
 	stdoutHandler := func(value []byte) {
 		exitStdout <- string(value)
 	}
-	stderrHandler := func(value []byte) {
-		exitStderr <- string(value)
-	}
 	handler := NewCmdHandler("/bin/bash", []string{
 		"-c",
-		"echo test ; >&2 echo foobar",
-	}, exitHandler, stdoutHandler, stderrHandler)
+		"echo test",
+	}, exitHandler, stdoutHandler, stdoutHandler)
 	err := handler.Start()
 	if err != nil {
-		t.Error("Coudln't start program")
+		t.Fatalf("Coudln't start program")
 		return
 	}
-	rc := <-exitWaiter
-	if !rc {
-		t.Error("Couldn't execute echo!")
+	ctx, _ := context.WithTimeout(context.Background(), 2*time.Second)
+	exitChecked, stdoutChecked := false, false
+	stdout := ""
+	for {
+		timeout := false
+		select {
+		case str := <-exitStdout:
+			stdout = stdout + strings.Trim(str, " \t\r\n") + " "
+			stdoutChecked = true
+		case <-ctx.Done():
+			timeout = true
+		}
+		if timeout {
+			break
+		}
 	}
-	str := <-exitStdout
-	if strings.Trim(str, " \t\r\n") != "test" {
-		t.Error("Unexpected stdout: '", str, "'")
+	ctx, _ = context.WithTimeout(context.Background(), 2*time.Second)
+	select {
+	case <-exitWaiter:
+		exitChecked = true
+	case <-ctx.Done():
 	}
-	str = <-exitStderr
-	if strings.Trim(str, " \t\r\n") != "foobar" {
-		t.Error("Unexpected stderr: '", str, "'")
+	if !strings.Contains(stdout, "test") {
+		t.Fatal("Unexpected stdout: '", stdout, "'")
+	}
+	if !stdoutChecked {
+		t.Fatalf("Test timeouted, exitChecked: %t, stdoutChecked: %t", exitChecked, stdoutChecked)
 	}
 }
 

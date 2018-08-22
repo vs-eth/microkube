@@ -18,6 +18,7 @@ package kube
 
 import (
 	"errors"
+	"fmt"
 	"github.com/uubk/microkube/pkg/handlers"
 	"github.com/uubk/microkube/pkg/helpers"
 	"github.com/uubk/microkube/pkg/pki"
@@ -25,6 +26,7 @@ import (
 	"io/ioutil"
 	"os"
 	"path"
+	"strconv"
 	"strings"
 )
 
@@ -36,6 +38,8 @@ type KubeletHandler struct {
 
 	// Path to kubelet binary
 	binary string
+	// Path to some sudo-like binary
+	sudoBin string
 	// Path to kubernetes server certificate
 	kubeServerCert string
 	// Path to kubernetes server certificate's key
@@ -52,33 +56,35 @@ type KubeletHandler struct {
 	// Path to kubelet config (!= kubeconfig, replacement for commandline flags)
 	config string
 	// Output handler
-	out handlers.OutputHander
+	out handlers.OutputHandler
 }
 
 // NewKubeletHandler creates a KubeletHandler from the arguments provided
-func NewKubeletHandler(binary, root, kubeconfig, listenAddress string, server, client, ca *pki.RSACertificate, out handlers.OutputHander, exit handlers.ExitHandler) (*KubeletHandler, error) {
+func NewKubeletHandler(execEnv handlers.ExecutionEnvironment, creds *pki.MicrokubeCredentials) (*KubeletHandler, error) {
 	obj := &KubeletHandler{
-		binary:         binary,
-		kubeServerCert: server.CertPath,
-		kubeServerKey:  server.KeyPath,
-		kubeCACert:     ca.CertPath,
+		binary:         execEnv.Binary,
+		kubeServerCert: creds.KubeServer.CertPath,
+		kubeServerKey:  creds.KubeServer.KeyPath,
+		kubeCACert:     creds.KubeCA.CertPath,
 		cmd:            nil,
-		out:            out,
-		rootDir:        root,
-		kubeconfig:     kubeconfig,
-		listenAddress:  listenAddress,
-		config:         path.Join(root, "kubelet.cfg"),
+		out:            execEnv.OutputHandler,
+		rootDir:        execEnv.Workdir,
+		kubeconfig:     creds.Kubeconfig,
+		listenAddress:  execEnv.ListenAddress.String(),
+		config:         path.Join(execEnv.Workdir, "kubelet.cfg"),
+		sudoBin:        execEnv.SudoMethod,
 	}
-	os.Mkdir(path.Join(root, "kubelet"), 0770)
-	os.Mkdir(path.Join(root, "staticpods"), 0770)
+	os.Mkdir(path.Join(execEnv.Workdir, "kubelet"), 0770)
+	os.Mkdir(path.Join(execEnv.Workdir, "staticpods"), 0770)
 
-	err := CreateKubeletConfig(obj.config, server, ca, path.Join(root, "staticpods"))
+	err := CreateKubeletConfig(obj.config, creds, execEnv, path.Join(execEnv.Workdir, "staticpods"))
 	if err != nil {
 		return nil, err
 	}
 
-	obj.BaseServiceHandler = *handlers.NewHandler(exit, obj.healthCheckFun, "http://localhost:10248/healthz",
-		obj.stop, obj.Start, ca, client)
+	obj.BaseServiceHandler = *handlers.NewHandler(execEnv.ExitHandler, obj.healthCheckFun,
+		"http://localhost:"+strconv.Itoa(execEnv.KubeletHealthPort)+"/healthz", obj.stop, obj.Start,
+		creds.KubeCA, creds.KubeClient)
 	return obj, nil
 }
 
@@ -91,7 +97,7 @@ func (handler *KubeletHandler) stop() {
 
 // Start starts the process, see interface docs
 func (handler *KubeletHandler) Start() error {
-	handler.cmd = helpers.NewCmdHandler("pkexec", []string{
+	handler.cmd = helpers.NewCmdHandler(handler.sudoBin, []string{
 		handler.binary,
 		"kubelet",
 		"--config",
@@ -128,4 +134,32 @@ func (handler *KubeletHandler) healthCheckFun(responseBin *io.ReadCloser) error 
 	return nil
 }
 
-// TODO: Test this (somehow...)
+// kubeletConstructor is supposed to be only used for testing
+func kubeletConstructor(execEnv handlers.ExecutionEnvironment,
+	creds *pki.MicrokubeCredentials) ([]handlers.ServiceHandler, error) {
+
+	// Start apiserver (and etcd)
+	handlerList, _, _, err := helpers.StartHandlerForTest(-1, "kube-apiserver", "hyperkube",
+		kubeApiServerConstructor, execEnv.ExitHandler, false, 30, creds, &execEnv)
+	if err != nil {
+		return handlerList, fmt.Errorf("kube-apiserver startup prereq failed %s", err)
+	}
+	// Generate kubeconfig
+	tmpdir, err := ioutil.TempDir("", "microkube-unittests-kubeconfig")
+	if err != nil {
+		return handlerList, fmt.Errorf("tempdir creation failed: %s", err)
+	}
+	kubeconfig := path.Join(tmpdir, "kubeconfig")
+	err = CreateClientKubeconfig(execEnv, creds, kubeconfig, "127.0.0.1")
+	if err != nil {
+		return handlerList, fmt.Errorf("kubeconfig creation failed: %s", err)
+	}
+
+	handler, err := NewKubeletHandler(execEnv, creds)
+	if err != nil {
+		return handlerList, fmt.Errorf("kubelet handler creation failed: %s", err)
+	}
+	handlerList = append(handlerList, handler)
+
+	return handlerList, nil
+}

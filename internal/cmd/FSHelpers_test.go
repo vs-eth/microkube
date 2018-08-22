@@ -17,14 +17,17 @@
 package cmd
 
 import (
+	"github.com/sirupsen/logrus"
 	"io/ioutil"
 	"os"
 	"path"
+	"strings"
 	"testing"
 )
 
 // Test whether EnsureDir works
 func TestEnsureDir(t *testing.T) {
+	logrus.SetLevel(logrus.FatalLevel)
 	tempDir, err := ioutil.TempDir("", "TestEnsureDir")
 	if err != nil {
 		t.Fatal("tempDir creation failed", err)
@@ -47,5 +50,13 @@ func TestEnsureDir(t *testing.T) {
 	}
 	if !info.IsDir() {
 		t.Fatal("dir is not a directory")
+	}
+
+	err = EnsureDir(tempDir, "a\0000b", 0770)
+	if err == nil {
+		t.Fatal("Expected error missing")
+	}
+	if !strings.Contains(err.Error(), "invalid argument") {
+		t.Fatalf("Unexpected error: %s", err)
 	}
 }

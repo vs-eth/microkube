@@ -19,16 +19,73 @@ package cmd
 import (
 	log "github.com/sirupsen/logrus"
 	"net"
-	"os"
 )
+
+// CalculateIPRanges takes the pod and service range as strings and calculates the required networks
+// for Microkube from it
+func CalculateIPRanges(podRange, serviceRange string) (pod, service, cluster *net.IPNet,
+	bind, firstSVC net.IP, errRet error) {
+	// Parse commandline arguments
+	podRangeIP, podRangeNet, err := net.ParseCIDR(podRange)
+	if err != nil {
+		log.WithFields(log.Fields{
+			"range": podRange,
+		}).WithError(err).Warn("Couldn't parse pod CIDR range")
+		return nil, nil, nil, nil, nil, err
+	}
+	serviceRangeIP, serviceRangeNet, err := net.ParseCIDR(serviceRange)
+	if err != nil {
+		log.WithFields(log.Fields{
+			"range": podRange,
+		}).WithError(err).Warn("Couldn't parse service CIDR range")
+		return nil, nil, nil, nil, nil, err
+	}
+
+	// Find address to bind to
+	bindAddr := FindBindAddress()
+
+	// To combine pod and service range to form the cluster range, find first diverging bit
+	baseOffset := 0
+	serviceBelowPod := false
+	for idx, octet := range serviceRangeNet.IP {
+		if podRangeNet.IP[idx] != octet {
+			// This octet diverges -> find bit
+			baseOffset = idx * 8
+			for mask := byte(0x80); mask > 0; mask /= 2 {
+				baseOffset++
+				if (podRangeNet.IP[idx] & mask) != (octet & mask) {
+					// Found it
+					serviceBelowPod = octet < podRangeNet.IP[idx]
+					break
+				}
+			}
+			baseOffset--
+		}
+	}
+	clusterIPRange := &net.IPNet{
+		IP: podRangeIP,
+	}
+	if serviceBelowPod {
+		clusterIPRange.IP = serviceRangeIP
+	}
+	clusterIPRange.Mask = net.CIDRMask(baseOffset, 32)
+	log.WithFields(log.Fields{
+		"podRange":     podRangeNet.String(),
+		"serviceRange": serviceRangeNet.String(),
+		"clusterRange": clusterIPRange.String(),
+		"hostIP":       bindAddr,
+	}).Info("IP ranges calculated")
+
+	return podRangeNet, serviceRangeNet, clusterIPRange, bindAddr, serviceRangeIP, nil
+}
 
 // FindBindAddress tries to find a private IPv4 address from some local interface that can be used to bind services to it
 func FindBindAddress() net.IP {
 	ifaces, err := net.Interfaces()
 	if err != nil {
 		log.WithError(err).Fatal("Couldn't read interface list")
-		os.Exit(-1)
 	}
+
 	var candidates []net.IP
 	_, loopback, _ := net.ParseCIDR("127.0.0.1/8")
 	for _, iface := range ifaces {
@@ -46,15 +103,18 @@ func FindBindAddress() net.IP {
 		}
 	}
 
-	_, privateA, _ := net.ParseCIDR("10.0.0.0/24")
-	_, privateB, _ := net.ParseCIDR("172.16.0.0/20")
-	_, privateC, _ := net.ParseCIDR("192.168.0.0/16")
 	if len(candidates) == 0 {
-		if err != nil {
-			log.WithError(err).Fatal("No non-loopback IPv4 addresses found")
-			os.Exit(-1)
-		}
+		log.WithError(err).Fatal("No non-loopback IPv4 addresses found")
 	}
+
+	return findBindAddress(candidates)
+}
+
+// findBindAddress tries to find a private IPv4 address from a list of addresses provided
+func findBindAddress(candidates []net.IP) net.IP {
+	_, privateA, _ := net.ParseCIDR("10.0.0.0/8")
+	_, privateB, _ := net.ParseCIDR("172.16.0.0/12")
+	_, privateC, _ := net.ParseCIDR("192.168.0.0/16")
 	log.WithFields(log.Fields{
 		"candidates": candidates,
 		"app":        "microkube",

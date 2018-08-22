@@ -17,7 +17,6 @@
 package log
 
 import (
-	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
 	"strings"
 )
@@ -38,12 +37,14 @@ func NewETCDLogParser() *ETCDLogParser {
 // handleLine handles a single line of log output
 func (h *ETCDLogParser) handleLine(lineStr string) error {
 	line := ETCDLogLine{}
-	ok, err := line.Extract(lineStr)
-	if err != nil {
-		return errors.Wrap(err, "Couldn't decode line '"+lineStr+"'!")
-	}
+	ok, _ := line.Extract(lineStr) // With the current format, this function will never return an error
 	if !ok {
-		return errors.New("Couldn't decode line '" + lineStr + "'")
+		// Better to log with incorrect format than to drop the whole thing...
+		logrus.WithFields(logrus.Fields{
+			"component": "EtcdLogParser",
+			"app":       "etcd",
+		}).Warn(strings.Trim(lineStr, "\n"))
+		return nil
 	}
 
 	entry := logrus.WithFields(logrus.Fields{
@@ -69,6 +70,8 @@ func (h *ETCDLogParser) handleLine(lineStr string) error {
 	case "I":
 		entry.Info(line.Message)
 	case "E":
+		entry.Error(line.Message)
+	case "C":
 		entry.Error(line.Message)
 	case "W":
 		entry.Warning(line.Message)

@@ -24,6 +24,7 @@ import (
 	"io"
 	"io/ioutil"
 	"path"
+	"strconv"
 	"strings"
 )
 
@@ -52,27 +53,32 @@ type ControllerManagerHandler struct {
 	// Address to bind on
 	bindAddress string
 	// Output handler
-	out handlers.OutputHander
+	out handlers.OutputHandler
+	// API listen port
+	kubeControllerManagerPort int
 }
 
 // NewControllerManagerHandler creates a ControllerManagerHandler from the arguments provided
-func NewControllerManagerHandler(binary, kubeconfig, listenAddress string, server, client, ca, clusterCA, svcAcctCert *pki.RSACertificate, podRange string, out handlers.OutputHander, exit handlers.ExitHandler) *ControllerManagerHandler {
+func NewControllerManagerHandler(execEnv handlers.ExecutionEnvironment, creds *pki.MicrokubeCredentials,
+	podRange string) *ControllerManagerHandler {
+
 	obj := &ControllerManagerHandler{
-		binary:            binary,
-		kubeServerCert:    server.CertPath,
-		kubeServerKey:     server.KeyPath,
-		cmd:               nil,
-		out:               out,
-		kubeconfig:        kubeconfig,
-		bindAddress:       listenAddress,
-		kubeClusterCACert: clusterCA.CertPath,
-		kubeClusterCAKey:  clusterCA.KeyPath,
-		podRange:          podRange,
-		kubeSvcKey:        svcAcctCert.KeyPath,
+		binary:                    execEnv.Binary,
+		kubeServerCert:            creds.KubeServer.CertPath,
+		kubeServerKey:             creds.KubeServer.KeyPath,
+		cmd:                       nil,
+		out:                       execEnv.OutputHandler,
+		kubeconfig:                creds.Kubeconfig,
+		bindAddress:               execEnv.ListenAddress.String(),
+		kubeClusterCACert:         creds.KubeClusterCA.CertPath,
+		kubeClusterCAKey:          creds.KubeClusterCA.KeyPath,
+		podRange:                  podRange,
+		kubeSvcKey:                creds.KubeSvcSignCert.KeyPath,
+		kubeControllerManagerPort: execEnv.KubeControllerManagerPort,
 	}
 
-	obj.BaseServiceHandler = *handlers.NewHandler(exit, obj.healthCheckFun, "https://"+listenAddress+":7000/healthz",
-		obj.stop, obj.Start, ca, client)
+	obj.BaseServiceHandler = *handlers.NewHandler(execEnv.ExitHandler, obj.healthCheckFun,
+		"https://"+execEnv.ListenAddress.String()+":"+strconv.Itoa(obj.kubeControllerManagerPort)+"/healthz", obj.stop, obj.Start, creds.KubeCA, creds.KubeClient)
 	return obj
 }
 
@@ -100,7 +106,7 @@ func (handler *ControllerManagerHandler) Start() error {
 		handler.kubeClusterCAKey,
 		"--enable-hostpath-provisioner",
 		"--secure-port",
-		"7000",
+		strconv.Itoa(handler.kubeControllerManagerPort),
 		"--kubeconfig",
 		handler.kubeconfig,
 		"--tls-cert-file",
@@ -109,6 +115,8 @@ func (handler *ControllerManagerHandler) Start() error {
 		handler.kubeServerKey,
 		"--service-account-private-key-file",
 		handler.kubeSvcKey,
+		"--port", // This is deprecated, but until it is removed it defaults to 10252
+		"0",
 	}, handler.BaseServiceHandler.HandleExit, handler.out, handler.out)
 	return handler.cmd.Start()
 }
@@ -126,24 +134,28 @@ func (handler *ControllerManagerHandler) healthCheckFun(responseBin *io.ReadClos
 }
 
 // kubeControllerManagerConstructor is supposed to be only used for testing
-func kubeControllerManagerConstructor(ca, server, client *pki.RSACertificate, binary, workdir string, outputHandler handlers.OutputHander, exitHandler handlers.ExitHandler) ([]handlers.ServiceHandler, error) {
+func kubeControllerManagerConstructor(execEnv handlers.ExecutionEnvironment,
+	creds *pki.MicrokubeCredentials) ([]handlers.ServiceHandler, error) {
+
 	// Start apiserver (and etcd)
-	handlerList, kubeCA, kubeClient, kubeServer, err := helpers.StartHandlerForTest("kube-apiserver", "hyperkube", kubeApiServerConstructor, exitHandler, false, 30)
+	handlerList, _, _, err := helpers.StartHandlerForTest(-1, "kube-apiserver", "hyperkube",
+		kubeApiServerConstructor, execEnv.ExitHandler, false, 30, creds, &execEnv)
 	if err != nil {
 		return handlerList, errors.Wrap(err, "kube-apiserver startup prereq failed")
 	}
+
 	// Generate kubeconfig
 	tmpdir, err := ioutil.TempDir("", "microkube-unittests-kubeconfig")
 	if err != nil {
 		errors.Wrap(err, "tempdir creation failed")
 	}
 	kubeconfig := path.Join(tmpdir, "kubeconfig")
-	err = CreateClientKubeconfig(ca, client, kubeconfig, "127.0.0.1")
+	err = CreateClientKubeconfig(execEnv, creds, kubeconfig, "127.0.0.1")
 	if err != nil {
 		return handlerList, errors.Wrap(err, "kubeconfig creation failed")
 	}
 
-	handlerList = append(handlerList, NewControllerManagerHandler(binary, kubeconfig, "127.0.0.1", kubeServer, kubeClient, kubeCA, ca, server, "127.10.11.0/24", outputHandler, exitHandler))
+	handlerList = append(handlerList, NewControllerManagerHandler(execEnv, creds, "127.10.11.0/24"))
 
 	return handlerList, nil
 }

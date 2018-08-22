@@ -18,6 +18,7 @@ package kube
 
 import (
 	"github.com/pkg/errors"
+	"github.com/uubk/microkube/pkg/handlers"
 	"github.com/uubk/microkube/pkg/pki"
 	"html/template"
 	"os"
@@ -25,19 +26,21 @@ import (
 
 // kubeletConfigData contains data used when templating a kubelet config. For internal use only.
 type kubeletConfigData struct {
-	CAFile        string
-	CertFile      string
-	KeyFile       string
-	StaticPodPath string
+	CAFile            string
+	CertFile          string
+	KeyFile           string
+	StaticPodPath     string
+	KubeletHealthPort int
 }
 
 // CreateKubeletConfig creates a kubelet config from the arguments provided and stores it in 'path'
-func CreateKubeletConfig(path string, server, ca *pki.RSACertificate, staticPodPath string) error {
+func CreateKubeletConfig(path string, creds *pki.MicrokubeCredentials, execEnv handlers.ExecutionEnvironment, staticPodPath string) error {
 	data := kubeletConfigData{
-		CAFile:        ca.CertPath,
-		StaticPodPath: staticPodPath,
-		CertFile:      server.CertPath,
-		KeyFile:       server.KeyPath,
+		CAFile:            creds.KubeCA.CertPath,
+		StaticPodPath:     staticPodPath,
+		CertFile:          creds.KubeServer.CertPath,
+		KeyFile:           creds.KubeServer.KeyPath,
+		KubeletHealthPort: execEnv.KubeletHealthPort,
 	}
 	tmplStr := `kind: KubeletConfiguration
 apiVersion: kubelet.config.k8s.io/v1beta1
@@ -50,7 +53,7 @@ authentication:
     clientCAFile: {{ .CAFile }}
 staticPodPath: {{ .StaticPodPath }}
 healthzBindAddress: 127.0.0.1
-healthzPort: 10248
+healthzPort: {{ .KubeletHealthPort }}
 kubeletCgroups: "/systemd/system.slice"
 tlsCertFile: {{ .CertFile }}
 tlsPrivateKeyFile: {{ .KeyFile }}

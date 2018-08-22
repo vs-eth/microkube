@@ -18,11 +18,15 @@ package kube
 
 import (
 	"encoding/json"
+	"fmt"
 	"github.com/pkg/errors"
 	"github.com/uubk/microkube/pkg/handlers"
 	"github.com/uubk/microkube/pkg/helpers"
+	"github.com/uubk/microkube/pkg/pki"
 	"io"
+	"io/ioutil"
 	"path"
+	"strconv"
 )
 
 // KubeProxyHandler handles invocation of the kubernetes proxy
@@ -34,6 +38,8 @@ type KubeProxyHandler struct {
 
 	// Path to kube proxy binary
 	binary string
+	// Path to some sudo-like binary
+	sudoBin string
 	// Path to kubeconfig
 	kubeconfig string
 	// Path to proxy config (!= kubeconfig, replacement for commandline flags)
@@ -41,25 +47,26 @@ type KubeProxyHandler struct {
 	// Cluster cidr
 	clusterCIDR string
 	// Output handler
-	out handlers.OutputHander
+	out handlers.OutputHandler
 }
 
 // NewKubeProxyHandler creates a KubeProxyHandler from the arguments provided
-func NewKubeProxyHandler(binary, root, kubeconfig, cidr string, out handlers.OutputHander, exit handlers.ExitHandler) (*KubeProxyHandler, error) {
+func NewKubeProxyHandler(execEnv handlers.ExecutionEnvironment, creds *pki.MicrokubeCredentials, cidr string) (*KubeProxyHandler, error) {
 	obj := &KubeProxyHandler{
-		binary:     binary,
+		binary:     execEnv.Binary,
 		cmd:        nil,
-		out:        out,
-		kubeconfig: kubeconfig,
-		config:     path.Join(root, "kube-proxy.cfg"),
+		out:        execEnv.OutputHandler,
+		kubeconfig: creds.Kubeconfig,
+		config:     path.Join(execEnv.Workdir, "kube-proxy.cfg"),
+		sudoBin:    execEnv.SudoMethod,
 	}
 
-	err := CreateKubeProxyConfig(obj.config, cidr, kubeconfig)
+	err := CreateKubeProxyConfig(obj.config, cidr, creds.Kubeconfig, execEnv)
 	if err != nil {
 		return nil, err
 	}
 
-	obj.BaseServiceHandler = *handlers.NewHandler(exit, obj.healthCheckFun, "http://localhost:10256/healthz",
+	obj.BaseServiceHandler = *handlers.NewHandler(execEnv.ExitHandler, obj.healthCheckFun, "http://localhost:"+strconv.Itoa(execEnv.KubeProxyHealthPort)+"/healthz",
 		obj.stop, obj.Start, nil, nil)
 	return obj, nil
 }
@@ -73,7 +80,7 @@ func (handler *KubeProxyHandler) stop() {
 
 // Start starts the process, see interface docs
 func (handler *KubeProxyHandler) Start() error {
-	handler.cmd = helpers.NewCmdHandler("pkexec", []string{
+	handler.cmd = helpers.NewCmdHandler(handler.sudoBin, []string{
 		handler.binary,
 		"kube-proxy",
 		"--config",
@@ -97,4 +104,35 @@ func (handler *KubeProxyHandler) healthCheckFun(responseBin *io.ReadCloser) erro
 		return errors.Wrap(err, "kube-proxy is unhealthy!")
 	}
 	return nil
+}
+
+// kubeProxyConstructor is supposed to be only used for testing
+func kubeProxyConstructor(execEnv handlers.ExecutionEnvironment,
+	creds *pki.MicrokubeCredentials) ([]handlers.ServiceHandler, error) {
+
+	// Start apiserver (and etcd)
+	handlerList, _, _, err := helpers.StartHandlerForTest(-1, "kube-apiserver", "hyperkube",
+		kubeApiServerConstructor, execEnv.ExitHandler, false, 30, creds, &execEnv)
+	if err != nil {
+		return handlerList, fmt.Errorf("kube-apiserver startup prereq failed %s", err)
+	}
+
+	// Generate kubeconfig
+	tmpdir, err := ioutil.TempDir("", "microkube-unittests-kubeconfig")
+	if err != nil {
+		return handlerList, fmt.Errorf("tempdir creation failed: %s", err)
+	}
+	kubeconfig := path.Join(tmpdir, "kubeconfig")
+	err = CreateClientKubeconfig(execEnv, creds, kubeconfig, "127.0.0.1")
+	if err != nil {
+		return handlerList, fmt.Errorf("kubeconfig creation failed: %s", err)
+	}
+
+	handler, err := NewKubeProxyHandler(execEnv, creds, "1.0.0.0/1")
+	if err != nil {
+		return handlerList, fmt.Errorf("kubeProxy handler creation failed: %s", err)
+	}
+	handlerList = append(handlerList, handler)
+
+	return handlerList, nil
 }

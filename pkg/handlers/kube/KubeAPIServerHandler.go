@@ -25,6 +25,7 @@ import (
 	"github.com/uubk/microkube/pkg/pki"
 	"io"
 	"io/ioutil"
+	"strconv"
 	"strings"
 )
 
@@ -58,35 +59,43 @@ type KubeAPIServerHandler struct {
 	// Service account signing cert private key
 	svcKey string
 	// Output handler
-	out handlers.OutputHander
+	out handlers.OutputHandler
 	// Listen address
 	listenAddress string
 	// Service network in CIDR notation
 	serviceNet string
+	// API listen port
+	kubeApiPort int
+	// Node API listen port
+	kubeNodeApiPort int
+	// ETCD client port
+	etcdClientPort int
 }
 
 // NewKubeAPIServerHandler creates a KubeAPIServerHandler from the arguments provided
-func NewKubeAPIServerHandler(binary string, kubeServer, kubeClient, kubeCA, kubeSvc,
-	etcdClient, etcdCA *pki.RSACertificate, out handlers.OutputHander, exit handlers.ExitHandler, listenAddress string, serviceNet string) *KubeAPIServerHandler {
+func NewKubeAPIServerHandler(execEnv handlers.ExecutionEnvironment, creds *pki.MicrokubeCredentials, serviceNet string) *KubeAPIServerHandler {
 	obj := &KubeAPIServerHandler{
-		binary:         binary,
-		kubeServerCert: kubeServer.CertPath,
-		kubeServerKey:  kubeServer.KeyPath,
-		kubeClientCert: kubeClient.CertPath,
-		kubeClientKey:  kubeClient.KeyPath,
-		kubeCACert:     kubeCA.CertPath,
-		etcdClientCert: etcdClient.CertPath,
-		etcdClientKey:  etcdClient.KeyPath,
-		etcdCACert:     etcdCA.CertPath,
-		cmd:            nil,
-		out:            out,
-		listenAddress:  listenAddress,
-		serviceNet:     serviceNet,
-		svcCert:        kubeSvc.CertPath,
-		svcKey:         kubeSvc.KeyPath,
+		binary:          execEnv.Binary,
+		kubeServerCert:  creds.KubeServer.CertPath,
+		kubeServerKey:   creds.KubeServer.KeyPath,
+		kubeClientCert:  creds.KubeClient.CertPath,
+		kubeClientKey:   creds.KubeClient.KeyPath,
+		kubeCACert:      creds.KubeCA.CertPath,
+		etcdClientCert:  creds.EtcdClient.CertPath,
+		etcdClientKey:   creds.EtcdClient.KeyPath,
+		etcdCACert:      creds.EtcdCA.CertPath,
+		cmd:             nil,
+		out:             execEnv.OutputHandler,
+		listenAddress:   execEnv.ListenAddress.String(),
+		serviceNet:      serviceNet,
+		svcCert:         creds.KubeSvcSignCert.CertPath,
+		svcKey:          creds.KubeSvcSignCert.KeyPath,
+		kubeApiPort:     execEnv.KubeApiPort,
+		kubeNodeApiPort: execEnv.KubeNodeApiPort,
+		etcdClientPort:  execEnv.EtcdClientPort,
 	}
-	obj.BaseServiceHandler = *handlers.NewHandler(exit, obj.healthCheckFun, "https://"+listenAddress+":7443/healthz",
-		obj.stop, obj.Start, kubeCA, kubeClient)
+	obj.BaseServiceHandler = *handlers.NewHandler(execEnv.ExitHandler, obj.healthCheckFun,
+		"https://"+obj.listenAddress+":"+strconv.Itoa(execEnv.KubeApiPort)+"/healthz", obj.stop, obj.Start, creds.KubeCA, creds.KubeClient)
 	return obj
 }
 
@@ -99,16 +108,31 @@ func (handler *KubeAPIServerHandler) stop() {
 
 // Start starts the process, see interface docs
 func (handler *KubeAPIServerHandler) Start() error {
+	lowerSVCPort := 7000
+	upperSVCPort := 9000
+	ports := []int{
+		handler.etcdClientPort,
+		handler.kubeApiPort,
+		handler.kubeNodeApiPort,
+	}
+	for _, port := range ports {
+		if port > upperSVCPort {
+			upperSVCPort = port + 100
+		}
+		if port < lowerSVCPort {
+			lowerSVCPort = port - 100
+		}
+	}
 	handler.cmd = helpers.NewCmdHandler(handler.binary, []string{
 		"kube-apiserver",
 		"--bind-address",
 		handler.listenAddress,
 		"--secure-port",
-		"7443",
+		strconv.Itoa(handler.kubeApiPort),
 		"--kubernetes-service-node-port",
-		"7444",
+		strconv.Itoa(handler.kubeNodeApiPort),
 		"--service-node-port-range",
-		"7000-9000",
+		strconv.Itoa(lowerSVCPort) + "-" + strconv.Itoa(upperSVCPort),
 		"--service-cluster-ip-range",
 		handler.serviceNet,
 		"--allow-privileged",
@@ -125,7 +149,7 @@ func (handler *KubeAPIServerHandler) Start() error {
 		"--etcd-keyfile",
 		handler.etcdClientKey,
 		"--etcd-servers",
-		"https://127.0.0.1:2379",
+		"https://127.0.0.1:" + strconv.Itoa(handler.etcdClientPort),
 		"--kubelet-certificate-authority",
 		handler.kubeCACert,
 		"--kubelet-client-certificate",
@@ -140,6 +164,8 @@ func (handler *KubeAPIServerHandler) Start() error {
 		handler.svcCert,
 		"--service-account-key-file",
 		handler.svcKey,
+		"--insecure-port", // This is deprecated, but until it is removed it defaults to 8080
+		"0",
 	}, handler.BaseServiceHandler.HandleExit, handler.out, handler.out)
 	return handler.cmd.Start()
 }
@@ -157,12 +183,12 @@ func (handler *KubeAPIServerHandler) healthCheckFun(responseBin *io.ReadCloser) 
 }
 
 // kubeApiServerConstructor is supposed to be only used for testing
-func kubeApiServerConstructor(ca, server, client *pki.RSACertificate, binary, workdir string, outputHandler handlers.OutputHander, exitHandler handlers.ExitHandler) ([]handlers.ServiceHandler, error) {
-	handlerList, etcdCA, etcdClient, _, err := helpers.StartHandlerForTest("etcd", "etcd", etcd.EtcdHandlerConstructor(2379), exitHandler, false, 1)
+func kubeApiServerConstructor(execEnv handlers.ExecutionEnvironment, creds *pki.MicrokubeCredentials) ([]handlers.ServiceHandler, error) {
+	handlerList, _, _, err := helpers.StartHandlerForTest(-1, "etcd", "etcd", etcd.EtcdHandlerConstructor, execEnv.ExitHandler, false, 1, creds, &execEnv)
 	if err != nil {
 		return handlerList, errors.Wrap(err, "etcd startup prereq failed")
 	}
-	handlerList = append(handlerList, NewKubeAPIServerHandler(binary, server, client, ca, ca, etcdClient, etcdCA, outputHandler, exitHandler, "0.0.0.0", "127.10.10.0/24"))
+	handlerList = append(handlerList, NewKubeAPIServerHandler(execEnv, creds, "127.0.0.0/16"))
 
 	return handlerList, nil
 }

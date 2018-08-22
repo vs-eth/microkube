@@ -16,69 +16,47 @@
 
 package cmd
 
-import "testing"
+import (
+	"fmt"
+	"github.com/sirupsen/logrus"
+	"github.com/uubk/microkube/internal/cmd"
+	"io/ioutil"
+	"testing"
+	"time"
+)
 
-// TestStandardIPRanges tests whether parsing the default IP ranges works
-func TestStandardIPRanges(t *testing.T) {
-	uut := Microkubed{}
-	err := uut.calculateIPRanges("10.233.42.1/24", "10.233.43.1/24")
+// Test9IntegrationMicrokubed runs a full integration test, that is, it bootstraps a full cluster and waits until it
+// is healthy. This requires:
+//  - passwordless sudo
+//  - iptables rules that do not restrict the pod/service networks
+//  - access to the docker socket
+//  - Linux
+func Test9IntegrationMicrokubed(t *testing.T) {
+	logrus.SetLevel(logrus.WarnLevel)
+	obj := Microkubed{}
+
+	// Emulate handleArgs
+	rootdir, err := ioutil.TempDir("", "microkube-integration-test")
 	if err != nil {
-		t.Fatalf("Unexpected error: %s", err)
+		t.Fatalf("tempdir creation failed: '%s'", err)
 	}
-
-	if uut.podRangeNet.String() != "10.233.42.0/24" {
-		t.Fatalf("Pod range was parsed incorrectly %s", uut.podRangeNet.String())
-	}
-	if uut.serviceRangeNet.String() != "10.233.43.0/24" {
-		t.Fatalf("Service range was parsed incorrectly %s", uut.serviceRangeNet.String())
-	}
-	if uut.serviceRangeIP.String() != "10.233.43.1" {
-		t.Fatalf("Service IP was parsed incorrectly %s", uut.serviceRangeIP.String())
-	}
-	if uut.clusterIPRange.String() != "10.233.42.1/23" {
-		t.Fatalf("Cluster IP range was parsed incorrectly %s", uut.clusterIPRange.String())
-	}
-}
-
-// TestDiscontinousIPRanges tests whether parsing two discontinous IP ranges works and results in a huge clusternet
-func TestDiscontinousIPRanges(t *testing.T) {
-	uut := Microkubed{}
-	err := uut.calculateIPRanges("192.168.1.1/24", "192.168.15.1/24")
+	obj.baseDir = rootdir
+	obj.podRangeNet, obj.serviceRangeNet, obj.clusterIPRange, obj.bindAddr, obj.serviceRangeIP, err =
+		cmd.CalculateIPRanges("192.168.250.1/24", "192.168.251.1/24")
 	if err != nil {
-		t.Fatalf("Unexpected error: %s", err)
+		t.Fatalf("ipcalc failed: '%s'", err)
 	}
+	obj.sudoMethod = "/usr/bin/sudo"
+	obj.gracefulTerminationMode = false
+	obj.start()
+	obj.waitUntilNodeReady()
+	obj.enableHealthChecks()
+	// This should make all health checks execute once since they're on a ten second timer
+	time.Sleep(15 * time.Second)
+	// Cluster is running, node is healthy, we're done here
+	fmt.Println("All fine")
 
-	if uut.podRangeNet.String() != "192.168.1.0/24" {
-		t.Fatalf("Pod range was parsed incorrectly %s", uut.podRangeNet.String())
+	for _, item := range obj.serviceList {
+		item.handler.Stop()
 	}
-	if uut.serviceRangeNet.String() != "192.168.15.0/24" {
-		t.Fatalf("Service range was parsed incorrectly %s", uut.serviceRangeNet.String())
-	}
-	if uut.serviceRangeIP.String() != "192.168.15.1" {
-		t.Fatalf("Service IP was parsed incorrectly %s", uut.serviceRangeIP.String())
-	}
-	if uut.clusterIPRange.String() != "192.168.1.1/20" {
-		t.Fatalf("Cluster IP range was parsed incorrectly %s", uut.clusterIPRange.String())
-	}
-}
-
-// TestIPParseError tests whether parsing invalid IP ranges returns the correct error codes
-func TestIPParseError(t *testing.T) {
-	uut := Microkubed{}
-	err := uut.calculateIPRanges("192.168.1.1/33", "foobar")
-	if err == nil {
-		t.Fatalf("Expected error missing")
-	}
-	if err.Error() != "invalid CIDR address: 192.168.1.1/33" {
-		t.Fatalf("Unexpected error: %s", err)
-	}
-
-	err = uut.calculateIPRanges("192.168.1.1/31", "foobar")
-	if err == nil {
-		t.Fatalf("Expected error missing")
-	}
-	if err.Error() != "invalid CIDR address: foobar" {
-		t.Fatalf("Unexpected error: %s", err)
-	}
-
 }

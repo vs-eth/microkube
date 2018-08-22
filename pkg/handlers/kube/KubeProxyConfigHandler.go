@@ -18,21 +18,26 @@ package kube
 
 import (
 	"github.com/pkg/errors"
+	"github.com/uubk/microkube/pkg/handlers"
 	"os"
 	"text/template"
 )
 
 // kubeProxyConfigData contains data used when templating a kube proxy config. For internal use only.
 type kubeProxyConfigData struct {
-	Kubeconfig  string
-	ClusterCIDR string
+	Kubeconfig           string
+	ClusterCIDR          string
+	KubeProxyHealthPort  int
+	KubeProxyMetricsPort int
 }
 
 // CreateKubeProxyConfig creates a proxy config with most things hardcoded and stores it in 'path'
-func CreateKubeProxyConfig(path, clusterCIDR, kubeconfig string) error {
+func CreateKubeProxyConfig(path, clusterCIDR, kubeconfig string, execEnv handlers.ExecutionEnvironment) error {
 	data := kubeProxyConfigData{
-		Kubeconfig:  kubeconfig,
-		ClusterCIDR: clusterCIDR,
+		Kubeconfig:           kubeconfig,
+		ClusterCIDR:          clusterCIDR,
+		KubeProxyHealthPort:  execEnv.KubeProxyHealthPort,
+		KubeProxyMetricsPort: execEnv.KubeProxyMetricsPort,
 	}
 	tmplStr := `apiVersion: kubeproxy.config.k8s.io/v1alpha1
 bindAddress: 0.0.0.0
@@ -51,7 +56,7 @@ conntrack:
   tcpCloseWaitTimeout: 1h0m0s
   tcpEstablishedTimeout: 24h0m0s
 enableProfiling: false
-healthzBindAddress: 127.0.0.1:10256
+healthzBindAddress: 127.0.0.1:{{ .KubeProxyHealthPort }}
 hostnameOverride: ""
 iptables:
   masqueradeAll: false
@@ -64,7 +69,7 @@ ipvs:
   scheduler: ""
   syncPeriod: 30s
 kind: KubeProxyConfiguration
-metricsBindAddress: 127.0.0.1:10249
+metricsBindAddress: 127.0.0.1:{{ .KubeProxyMetricsPort }}
 nodePortAddresses: null
 oomScoreAdj: -999
 portRange: ""

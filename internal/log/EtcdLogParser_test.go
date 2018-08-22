@@ -35,6 +35,7 @@ func TestETCDMessageTypes(t *testing.T) {
 2018-08-12 14:13:48.437712 W | etcdserver: published {Name:default ClientURLs:[https://localhost:2379]} to cluster cdf818194e3a8c32
 2018-08-12 14:13:48.437712 D | etcdserver: published {Name:default ClientURLs:[https://localhost:2379]} to cluster cdf818194e3a8c32
 2018-08-12 14:13:48.437712 N | etcdserver: published {Name:default ClientURLs:[https://localhost:2379]} to cluster cdf818194e3a8c32
+2018-08-12 14:13:48.437712 C | etcdserver: published {Name:default ClientURLs:[https://localhost:2379]} to cluster cdf818194e3a8c32
 `
 	uut := NewETCDLogParser()
 	err := uut.HandleData([]byte(testStr))
@@ -47,7 +48,28 @@ func TestETCDMessageTypes(t *testing.T) {
 {"app":"etcd","component":"etcdserver","level":"warning","msg":"published {Name:default ClientURLs:[https://localhost:2379]} to cluster cdf818194e3a8c32"}
 {"app":"etcd","component":"etcdserver","level":"debug","msg":"published {Name:default ClientURLs:[https://localhost:2379]} to cluster cdf818194e3a8c32"}
 {"app":"etcd","component":"etcdserver","level":"info","msg":"published {Name:default ClientURLs:[https://localhost:2379]} to cluster cdf818194e3a8c32"}
+{"app":"etcd","component":"etcdserver","level":"error","msg":"published {Name:default ClientURLs:[https://localhost:2379]} to cluster cdf818194e3a8c32"}
 ` {
+		t.Fatalf("Unexpected output: %s", result)
+	}
+}
+
+// TestInvalidETCDMessage tests an invalid etcd message
+func TestInvalidETCDMessage(t *testing.T) {
+	var buffer bytes.Buffer
+	logrus.SetLevel(logrus.DebugLevel)
+	logrus.SetOutput(&buffer)
+	logrus.SetFormatter(&logrus.JSONFormatter{
+		DisableTimestamp: true,
+	})
+	testStr := "2018-08-12 14:13:48.437712 X |\n"
+	uut := NewETCDLogParser()
+	err := uut.HandleData([]byte(testStr))
+	if err != nil {
+		t.Fatalf("Unexpected error: %s", err)
+	}
+	result := buffer.String()
+	if result != "{\"app\":\"etcd\",\"component\":\"EtcdLogParser\",\"level\":\"warning\",\"msg\":\"2018-08-12 14:13:48.437712 X |\"}\n" {
 		t.Fatalf("Unexpected output: %s", result)
 	}
 }

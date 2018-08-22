@@ -18,6 +18,7 @@
 package cmd
 
 import (
+	"context"
 	"flag"
 	"github.com/mitchellh/go-homedir"
 	log "github.com/sirupsen/logrus"
@@ -28,6 +29,7 @@ import (
 	"github.com/uubk/microkube/pkg/handlers/kube"
 	"github.com/uubk/microkube/pkg/helpers"
 	"github.com/uubk/microkube/pkg/pki"
+	"io"
 	"net"
 	"os"
 	"os/exec"
@@ -37,7 +39,7 @@ import (
 )
 
 // serviceConstructor describes a function that can create a service, given the I/O handlers
-type serviceConstructor func(handlers.OutputHander, handlers.ExitHandler) (handlers.ServiceHandler, error)
+type serviceConstructor func(handlers.OutputHandler, handlers.ExitHandler) (handlers.ServiceHandler, error)
 
 // serviceEntry describes all information about a running service needed to check it's health and stop it
 type serviceEntry struct {
@@ -66,31 +68,21 @@ type Microkubed struct {
 	// First IP in service network, reserved for Kubernetes API Server service
 	serviceRangeIP net.IP
 	// CIDR of pod and service network combined
-	clusterIPRange net.IPNet
+	clusterIPRange *net.IPNet
 	// Some host-local address that the services will bind to
 	bindAddr net.IP
 
-	// CA certificate for etcd
-	etcdCA *pki.RSACertificate
-	// Client certificate for etcd
-	etcdClient *pki.RSACertificate
-	// Server certificate for etcd
-	etcdServer *pki.RSACertificate
-	// CA certificate for kubernetes
-	kubeCA *pki.RSACertificate
-	// Client certificate for kubernetes
-	kubeClient *pki.RSACertificate
-	// Server certificate for kubernetes
-	kubeServer *pki.RSACertificate
-	// CA certificate for kubernetes in-cluster CA
-	kubeClusterCA *pki.RSACertificate
-	// Signing certificate for kubernetes service account tokens
-	kubeSvcSignCert *pki.RSACertificate
+	// Struct with all credentials needed for any given service
+	cred *pki.MicrokubeCredentials
+	// Template struct with information needed for execution of programs
+	baseExecEnv handlers.ExecutionEnvironment
 
 	// Path to etcd server binary
 	etcdBin string
 	// Path to hyperkube binary
 	hyperkubeBin string
+	// Path to some sudo-like binary
+	sudoMethod string
 
 	// A list of running services
 	serviceList []serviceEntry
@@ -103,6 +95,7 @@ func (m *Microkubed) handleArgs() {
 	extraBinDir := flag.String("extra-bin-dir", "", "Additional directory to search for executables")
 	podRange := flag.String("pod-range", "10.233.42.1/24", "Pod IP range to use")
 	serviceRange := flag.String("service-range", "10.233.43.1/24", "Service IP range to use")
+	sudoMethod := flag.String("sudo", "/usr/bin/pkexec", "Sudo tool to use")
 	flag.Parse()
 
 	if *verbose {
@@ -118,69 +111,16 @@ func (m *Microkubed) handleArgs() {
 		log.WithError(err).WithField("extraBinDir", *extraBinDir).Fatal("Couldn't expand extraBin directory")
 	}
 
-	err = m.calculateIPRanges(*podRange, *serviceRange)
+	m.podRangeNet, m.serviceRangeNet, m.clusterIPRange, m.bindAddr, m.serviceRangeIP, err = cmd.CalculateIPRanges(*podRange, *serviceRange)
 	if err != nil {
 		log.Fatal("IP calculation returned error, aborting now!")
 	}
-}
 
-// Calculate all IP ranges from the command line strings
-func (m *Microkubed) calculateIPRanges(podRange, serviceRange string) error {
-	var podRangeIP, serviceRangeIP net.IP
-	var err error
-
-	// Parse commandline arguments
-	podRangeIP, m.podRangeNet, err = net.ParseCIDR(podRange)
-	if err != nil {
-		log.WithFields(log.Fields{
-			"range": podRange,
-		}).WithError(err).Warn("Couldn't parse pod CIDR range")
-		return err
+	file, err := os.Stat(*sudoMethod)
+	if err != nil || !file.Mode().IsRegular() {
+		log.WithError(err).WithField("sudo", *sudoMethod).Fatal("Sudo method is not a regular file!")
 	}
-	m.serviceRangeIP, m.serviceRangeNet, err = net.ParseCIDR(serviceRange)
-	if err != nil {
-		log.WithFields(log.Fields{
-			"range": podRange,
-		}).WithError(err).Warn("Couldn't parse service CIDR range")
-		return err
-	}
-
-	// Find address to bind to
-	m.bindAddr = cmd.FindBindAddress()
-
-	// To combine pod and service range to form the cluster range, find first diverging bit
-	baseOffset := 0
-	serviceBelowPod := false
-	for idx, octet := range m.serviceRangeNet.IP {
-		if m.podRangeNet.IP[idx] != octet {
-			// This octet diverges -> find bit
-			baseOffset = idx * 8
-			for mask := byte(0x80); mask > 0; mask /= 2 {
-				baseOffset++
-				if (m.podRangeNet.IP[idx] & mask) != (octet & mask) {
-					// Found it
-					serviceBelowPod = octet < m.podRangeNet.IP[idx]
-					break
-				}
-			}
-			baseOffset--
-		}
-	}
-	m.clusterIPRange = net.IPNet{
-		IP: podRangeIP,
-	}
-	if serviceBelowPod {
-		m.clusterIPRange.IP = serviceRangeIP
-	}
-	m.clusterIPRange.Mask = net.CIDRMask(baseOffset, 32)
-	log.WithFields(log.Fields{
-		"podRange":     m.podRangeNet.String(),
-		"serviceRange": m.serviceRangeNet.String(),
-		"clusterRange": m.clusterIPRange.String(),
-		"hostIP":       m.bindAddr,
-	}).Info("IP ranges calculated")
-
-	return nil
+	m.sudoMethod = *sudoMethod
 }
 
 // Create directories and copy CNI plugins if appropriate
@@ -203,44 +143,38 @@ func (m *Microkubed) createDirectories() {
 		"loopback",
 	}
 	for _, plugin := range cniPlugins {
-		_, err := os.Stat(path.Join(m.extraBinDir, plugin))
+		pluginPath, err := helpers.FindBinary(plugin, m.baseDir, m.extraBinDir)
 		if err == nil {
 			_, err := os.Stat(path.Join(m.baseDir, "kube", "kubelet", "cni", plugin))
 			if err != nil {
-				err = os.Link(path.Join(m.extraBinDir, plugin), path.Join(m.baseDir, "kube", "kubelet", "cni", plugin))
+				destPath := path.Join(m.baseDir, "kube", "kubelet", "cni", plugin)
+				err = os.Link(pluginPath, destPath)
 				if err != nil {
-					log.WithFields(log.Fields{
+					// Try to copy :/
+					lctx := log.WithFields(log.Fields{
 						"src":       path.Join(m.extraBinDir, plugin),
 						"dest":      path.Join(m.baseDir, "kube", "kubelet", "cni", plugin),
 						"app":       "microkube",
 						"component": "prep",
-					}).WithError(err).Fatal("Couldn't link CNI plugin")
+					})
+					lctx.WithError(err).Info("Couldn't link CNI plugin, trying to copy")
+					in, err := os.Open(pluginPath)
+					if err != nil {
+						lctx.WithError(err).Fatal("Couldn't open source file")
+					}
+					defer in.Close()
+					out, err := os.OpenFile(destPath, os.O_RDWR|os.O_CREATE, 0755)
+					if err != nil {
+						lctx.WithError(err).Fatal("Couldn't open destination file")
+					}
+					defer out.Close()
+					_, err = io.Copy(in, out)
+					if err != nil {
+						lctx.WithError(err).Fatal("Couldn't copy file")
+					}
 				}
 			}
 		}
-	}
-}
-
-// Create certificates if they don't already exist
-func (m *Microkubed) createCertificates() {
-	var err error
-	m.etcdCA, m.etcdServer, m.etcdClient, err = cmd.EnsureFullPKI(path.Join(m.baseDir, "etcdtls"), "Microkube ETCD",
-		false, true, []string{m.bindAddr.String()})
-	if err != nil {
-		log.WithError(err).Fatal("Couldn't create etcd PKI")
-	}
-	m.kubeCA, m.kubeServer, m.kubeClient, err = cmd.EnsureFullPKI(path.Join(m.baseDir, "kubetls"), "Microkube Kubernetes",
-		true, false, []string{m.bindAddr.String(), m.serviceRangeIP.String()})
-	if err != nil {
-		log.WithError(err).Fatal("Couldn't create kubernetes PKI")
-	}
-	m.kubeClusterCA, err = cmd.EnsureCA(path.Join(m.baseDir, "kubectls"), "Microkube Cluster CA")
-	if err != nil {
-		log.WithError(err).Fatal("Couldn't create kubernetes cluster CA")
-	}
-	m.kubeSvcSignCert, err = cmd.EnsureSigningCert(path.Join(m.baseDir, "kubestls"), "Microkube Cluster SVC Signcert")
-	if err != nil {
-		log.WithError(err).Fatal("Couldn't create kubernetes service secret signing certificate")
 	}
 }
 
@@ -259,10 +193,17 @@ func (m *Microkubed) findBinaries() {
 
 // Start etcd
 func (m *Microkubed) startEtcd() {
-	etcdHandler, etcdChan, etcdHealthChan := m.startService("etcd", func(etcdOutputHandler handlers.OutputHander,
+	etcdHandler, etcdChan, etcdHealthChan := m.startService("etcd", func(etcdOutputHandler handlers.OutputHandler,
 		etcdExitHandler handlers.ExitHandler) (handlers.ServiceHandler, error) {
-		return etcd.NewEtcdHandler(path.Join(m.baseDir, "etcddata"), m.etcdBin, m.etcdServer, m.etcdClient, m.etcdCA,
-			etcdOutputHandler, etcdExitHandler), nil
+
+		execEnv := handlers.ExecutionEnvironment{
+			Binary:        m.etcdBin,
+			ExitHandler:   etcdExitHandler,
+			OutputHandler: etcdOutputHandler,
+			Workdir:       path.Join(m.baseDir, "etcddata"),
+		}
+		execEnv.CopyInformationFromBase(&m.baseExecEnv)
+		return etcd.NewEtcdHandler(execEnv, m.cred), nil
 	}, log2.NewETCDLogParser())
 	m.serviceHandlers = append(m.serviceHandlers, etcdHandler)
 	log.Debug("ETCD ready")
@@ -279,10 +220,16 @@ func (m *Microkubed) startEtcd() {
 func (m *Microkubed) startKubeAPIServer() {
 	log.Debug("Starting kube api server...")
 	kubeAPIHandler, kubeAPIChan, kubeAPIHealthChan := m.startService("kube-apiserver",
-		func(kubeAPIOutputHandler handlers.OutputHander,
+		func(kubeAPIOutputHandler handlers.OutputHandler,
 			kubeAPIExitHandler handlers.ExitHandler) (handlers.ServiceHandler, error) {
-			return kube.NewKubeAPIServerHandler(m.hyperkubeBin, m.kubeServer, m.kubeClient, m.kubeCA, m.kubeSvcSignCert, m.etcdClient,
-				m.etcdCA, kubeAPIOutputHandler, kubeAPIExitHandler, m.bindAddr.String(), m.serviceRangeNet.String()), nil
+
+			execEnv := handlers.ExecutionEnvironment{
+				Binary:        m.hyperkubeBin,
+				ExitHandler:   kubeAPIExitHandler,
+				OutputHandler: kubeAPIOutputHandler,
+			}
+			execEnv.CopyInformationFromBase(&m.baseExecEnv)
+			return kube.NewKubeAPIServerHandler(execEnv, m.cred, m.serviceRangeNet.String()), nil
 		}, log2.NewKubeLogParser("kube-api"))
 	m.serviceHandlers = append(m.serviceHandlers, kubeAPIHandler)
 	log.Debug("Kube api server ready")
@@ -293,12 +240,13 @@ func (m *Microkubed) startKubeAPIServer() {
 	_, err := os.Stat(kubeconfig)
 	if err != nil {
 		log.Debug("Creating kubeconfig")
-		err = kube.CreateClientKubeconfig(m.kubeCA, m.kubeClient, kubeconfig, m.bindAddr.String())
+		err = kube.CreateClientKubeconfig(m.baseExecEnv, m.cred, kubeconfig, m.bindAddr.String())
 		if err != nil {
 			log.WithError(err).Fatal("Couldn't create kubeconfig!")
 			return
 		}
 	}
+	m.cred.Kubeconfig = kubeconfig
 
 	m.serviceList = append(m.serviceList, serviceEntry{
 		handler:    kubeAPIHandler,
@@ -312,11 +260,16 @@ func (m *Microkubed) startKubeAPIServer() {
 func (m *Microkubed) startKubeControllerManager() {
 	log.Debug("Starting controller-manager...")
 	kubeCtrlMgrHandler, kubeCtrlMgrChan, kubeCtrlMgrHealthChan := m.startService("kube-controller-manager",
-		func(kubeCtrlMgrOutputHandler handlers.OutputHander,
+		func(kubeCtrlMgrOutputHandler handlers.OutputHandler,
 			kubeCtrlMgrExitHandler handlers.ExitHandler) (handlers.ServiceHandler, error) {
-			return kube.NewControllerManagerHandler(m.hyperkubeBin, path.Join(m.baseDir, "kube/", "kubeconfig"),
-				m.bindAddr.String(), m.kubeServer, m.kubeClient, m.kubeCA, m.kubeClusterCA, m.kubeSvcSignCert, m.podRangeNet.String(),
-				kubeCtrlMgrOutputHandler, kubeCtrlMgrExitHandler), nil
+
+			execEnv := handlers.ExecutionEnvironment{
+				Binary:        m.hyperkubeBin,
+				ExitHandler:   kubeCtrlMgrExitHandler,
+				OutputHandler: kubeCtrlMgrOutputHandler,
+			}
+			execEnv.CopyInformationFromBase(&m.baseExecEnv)
+			return kube.NewControllerManagerHandler(execEnv, m.cred, m.podRangeNet.String()), nil
 		}, log2.NewKubeLogParser("kube-controller-manager"))
 	m.serviceHandlers = append(m.serviceHandlers, kubeCtrlMgrHandler)
 	log.Debug("Kube controller-manager ready")
@@ -333,10 +286,17 @@ func (m *Microkubed) startKubeControllerManager() {
 func (m *Microkubed) startKubeScheduler() {
 	log.Debug("Starting kube-scheduler...")
 	kubeSchedHandler, kubeSchedChan, kubeSchedHealthChan := m.startService("kube-scheduler",
-		func(kubeSchedOutputHandler handlers.OutputHander,
+		func(kubeSchedOutputHandler handlers.OutputHandler,
 			kubeSchedExitHandler handlers.ExitHandler) (handlers.ServiceHandler, error) {
-			return kube.NewKubeSchedulerHandler(m.hyperkubeBin, path.Join(m.baseDir, "kubesched"),
-				path.Join(m.baseDir, "kube/", "kubeconfig"), kubeSchedOutputHandler, kubeSchedExitHandler)
+
+			execEnv := handlers.ExecutionEnvironment{
+				Binary:        m.hyperkubeBin,
+				Workdir:       path.Join(m.baseDir, "kubesched"),
+				ExitHandler:   kubeSchedExitHandler,
+				OutputHandler: kubeSchedOutputHandler,
+			}
+			execEnv.CopyInformationFromBase(&m.baseExecEnv)
+			return kube.NewKubeSchedulerHandler(execEnv, m.cred)
 		}, log2.NewKubeLogParser("kube-scheduler"))
 	m.serviceHandlers = append(m.serviceHandlers, kubeSchedHandler)
 	log.Debug("Kube-scheduler ready")
@@ -353,10 +313,17 @@ func (m *Microkubed) startKubeScheduler() {
 func (m *Microkubed) startKubelet() {
 	log.Debug("Starting kubelet...")
 	kubeletHandler, kubeletChan, kubeletHealthChan := m.startService("kubelet",
-		func(kubeletOutputHandler handlers.OutputHander,
+		func(kubeletOutputHandler handlers.OutputHandler,
 			kubeletExitHandler handlers.ExitHandler) (handlers.ServiceHandler, error) {
-			return kube.NewKubeletHandler(m.hyperkubeBin, path.Join(m.baseDir, "kube"), path.Join(m.baseDir, "kube/", "kubeconfig"),
-				m.bindAddr.String(), m.kubeServer, m.kubeClient, m.kubeCA, kubeletOutputHandler, kubeletExitHandler)
+
+			execEnv := handlers.ExecutionEnvironment{
+				Binary:        m.hyperkubeBin,
+				Workdir:       path.Join(m.baseDir, "kube"),
+				ExitHandler:   kubeletExitHandler,
+				OutputHandler: kubeletOutputHandler,
+			}
+			execEnv.CopyInformationFromBase(&m.baseExecEnv)
+			return kube.NewKubeletHandler(execEnv, m.cred)
 		}, log2.NewKubeLogParser("kubelet"))
 	m.serviceHandlers = append(m.serviceHandlers, kubeletHandler)
 	log.Debug("Kubelet ready")
@@ -373,9 +340,16 @@ func (m *Microkubed) startKubelet() {
 func (m *Microkubed) startKubeProxy() {
 	log.Debug("Starting kube-proxy...")
 	kubeProxyHandler, kubeProxyChan, kubeProxyHealthChan := m.startService("kube-proxy",
-		func(output handlers.OutputHander, exit handlers.ExitHandler) (handlers.ServiceHandler, error) {
-			return kube.NewKubeProxyHandler(m.hyperkubeBin, path.Join(m.baseDir, "kube"),
-				path.Join(m.baseDir, "kube/", "kubeconfig"), m.clusterIPRange.String(), output, exit)
+		func(output handlers.OutputHandler, exit handlers.ExitHandler) (handlers.ServiceHandler, error) {
+
+			execEnv := handlers.ExecutionEnvironment{
+				Binary:        m.hyperkubeBin,
+				Workdir:       path.Join(m.baseDir, "kube"),
+				ExitHandler:   exit,
+				OutputHandler: output,
+			}
+			execEnv.CopyInformationFromBase(&m.baseExecEnv)
+			return kube.NewKubeProxyHandler(execEnv, m.cred, m.clusterIPRange.String())
 		}, log2.NewKubeLogParser("kube-proxy"))
 	defer kubeProxyHandler.Stop()
 	m.serviceHandlers = append(m.serviceHandlers, kubeProxyHandler)
@@ -432,14 +406,14 @@ func (m *Microkubed) waitUntilNodeReady() chan bool {
 		log.WithError(err).Fatalf("Couldn't init kube client")
 	}
 	log.Info("Waiting for node...")
-	kCl.WaitForNode()
+	kCl.WaitForNode(context.Background())
 	// Since we got to this point: Handle quitting gracefully (that is stop all pods!)
 	sigChan := make(chan os.Signal, 1)
 	exitChan := make(chan bool, 1)
 	go func() {
 		<-sigChan
 		log.Info("Shutting down...")
-		kCl.DrainNode()
+		kCl.DrainNode(context.Background())
 		exitChan <- true
 	}()
 	// Unregister "terminate immediately" serviceHandlers set during startup
@@ -467,16 +441,7 @@ func (m *Microkubed) Run() {
 		}
 	})
 
-	m.createDirectories()
-	m.createCertificates()
-	m.findBinaries()
-
-	m.startEtcd()
-	m.startKubeAPIServer()
-	m.startKubeControllerManager()
-	m.startKubeScheduler()
-	m.startKubelet()
-	m.startKubeProxy()
+	m.start()
 
 	exitChan := m.waitUntilNodeReady()
 
@@ -489,6 +454,29 @@ func (m *Microkubed) Run() {
 		h.Stop()
 	}
 	return
+}
+
+// start starts all cluster services
+func (m *Microkubed) start() {
+	m.createDirectories()
+	m.cred = &pki.MicrokubeCredentials{}
+	err := m.cred.CreateOrLoadCertificates(m.baseDir, m.bindAddr, m.serviceRangeIP)
+	if err != nil {
+		log.WithError(err).Fatal("Couldn't init credentials!")
+	}
+	m.baseExecEnv.ListenAddress = m.bindAddr
+	m.baseExecEnv.ServiceAddress = m.serviceRangeIP
+	m.baseExecEnv.SudoMethod = m.sudoMethod
+	m.baseExecEnv.InitPorts(7000)
+
+	m.findBinaries()
+
+	m.startEtcd()
+	m.startKubeAPIServer()
+	m.startKubeControllerManager()
+	m.startKubeScheduler()
+	m.startKubelet()
+	m.startKubeProxy()
 }
 
 // Starts a service. This function takes care of setting up the infrastructure required by a service constructor

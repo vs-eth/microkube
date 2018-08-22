@@ -22,15 +22,15 @@ import (
 	"testing"
 )
 
-// Test Controller/Manager startup
-func TestControllerManagerStartup(t *testing.T) {
+// Test Kubelet startup
+func TestKubeletStartup(t *testing.T) {
 	done := false
 	exitHandler := func(success bool, exitError *exec.ExitError) {
 		if !done {
 			t.Fatal("exit detected", exitError)
 		}
 	}
-	handler, _, _, err := helpers.StartHandlerForTest(30200, "kube-controller-manager", "hyperkube", kubeControllerManagerConstructor, exitHandler, false, 30, nil, nil)
+	handler, _, _, err := helpers.StartHandlerForTest(30300, "kubelet", "hyperkube", kubeletConstructor, exitHandler, false, 30, nil, nil)
 	if err != nil {
 		t.Fatal("Test failed:", err)
 		return

@@ -49,27 +49,27 @@ type EtcdHandler struct {
 	// Path to etcd ca certificate
 	cacert string
 	// Output handler
-	out handlers.OutputHander
+	out handlers.OutputHandler
 	// Exit handler
 	exit handlers.ExitHandler
 }
 
 // NewEtcdHandler creates an EtcdHandler from the arguments provided
-func NewEtcdHandler(datadir, binary string, server, client, ca *pki.RSACertificate, out handlers.OutputHander, exit handlers.ExitHandler) *EtcdHandler {
+func NewEtcdHandler(execEnv handlers.ExecutionEnvironment, creds *pki.MicrokubeCredentials) *EtcdHandler {
 	obj := &EtcdHandler{
-		datadir:    datadir,
-		binary:     binary,
-		clientport: 2379,
-		peerport:   2380,
-		servercert: server.CertPath,
-		serverkey:  server.KeyPath,
-		cacert:     ca.CertPath,
+		datadir:    execEnv.Workdir,
+		binary:     execEnv.Binary,
+		clientport: execEnv.EtcdClientPort,
+		peerport:   execEnv.EtcdPeerPort,
+		servercert: creds.EtcdServer.CertPath,
+		serverkey:  creds.EtcdServer.KeyPath,
+		cacert:     creds.EtcdCA.CertPath,
 		cmd:        nil,
-		out:        out,
-		exit:       exit,
+		out:        execEnv.OutputHandler,
+		exit:       execEnv.ExitHandler,
 	}
-	obj.BaseServiceHandler = *handlers.NewHandler(exit, obj.healthCheckFun,
-		"https://localhost:"+strconv.Itoa(obj.clientport)+"/health", obj.stop, obj.Start, ca, client)
+	obj.BaseServiceHandler = *handlers.NewHandler(execEnv.ExitHandler, obj.healthCheckFun,
+		"https://localhost:"+strconv.Itoa(obj.clientport)+"/health", obj.stop, obj.Start, creds.EtcdCA, creds.EtcdClient)
 	return obj
 }
 
@@ -130,15 +130,11 @@ func (handler *EtcdHandler) healthCheckFun(responseBin *io.ReadCloser) error {
 }
 
 // EtcdHandlerConstructor is supposed to be only used for testing
-func EtcdHandlerConstructor(firstPort int) func(ca, server, client *pki.RSACertificate, binary, workdir string, outputHandler handlers.OutputHander, exitHandler handlers.ExitHandler) ([]handlers.ServiceHandler, error) {
-	return func(ca, server, client *pki.RSACertificate, binary, workdir string, outputHandler handlers.OutputHander, exitHandler handlers.ExitHandler) ([]handlers.ServiceHandler, error) {
-		handler := NewEtcdHandler(workdir, binary, server, client, ca, outputHandler, exitHandler)
-		handler.clientport = firstPort
-		handler.peerport = firstPort + 1
-		handler.BaseServiceHandler = *handlers.NewHandler(handler.exit, handler.healthCheckFun,
-			"https://localhost:"+strconv.Itoa(handler.clientport)+"/health", handler.stop, handler.Start, ca, client)
-		return []handlers.ServiceHandler{
-			handler,
-		}, nil
-	}
+func EtcdHandlerConstructor(execEnv handlers.ExecutionEnvironment, creds *pki.MicrokubeCredentials) ([]handlers.ServiceHandler, error) {
+	handler := NewEtcdHandler(execEnv, creds)
+	handler.BaseServiceHandler = *handlers.NewHandler(handler.exit, handler.healthCheckFun,
+		"https://localhost:"+strconv.Itoa(handler.clientport)+"/health", handler.stop, handler.Start, creds.EtcdCA, creds.EtcdClient)
+	return []handlers.ServiceHandler{
+		handler,
+	}, nil
 }

@@ -19,7 +19,6 @@
 package log
 
 import (
-	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
 	"regexp"
 	"strings"
@@ -51,12 +50,13 @@ func (h *KubeLogParser) handleLine(lineStr string) error {
 	if strings.HasPrefix(lineStr, "[restful]") {
 		// Ugh. [restful] means that this line is actually a different format
 		line := KubeLogLineRestful{}
-		ok, err := line.Extract(lineStr)
-		if err != nil {
-			return errors.Wrap(err, "Couldn't decode line '"+lineStr+"'!")
-		}
+		ok, _ := line.Extract(lineStr) // With the current format, this function will never return an error
 		if !ok {
-			return errors.New("Coudln't decode 'restful' line '" + lineStr + "'")
+			// Whelp. Normal format didn't work out, assume this line is simply unformatted...
+			logrus.WithFields(logrus.Fields{
+				"app": h.app,
+			}).Warn(strings.Trim(lineStr, "\n"))
+			return nil
 		}
 		logrus.WithFields(logrus.Fields{
 			"component": "restful",
@@ -69,10 +69,7 @@ func (h *KubeLogParser) handleLine(lineStr string) error {
 		// Fix multi-whitespaces as kube logs are intended for consoles...
 		lineStr = h.regexpInstance.ReplaceAllString(lineStr, " ")
 
-		ok, err := line.Extract(lineStr)
-		if err != nil {
-			return errors.Wrap(err, "Couldn't decode line '"+lineStr+"'!")
-		}
+		ok, _ := line.Extract(lineStr) // With the current format, this function will never return an error
 		if ok {
 			// Yay, this is a normal log entry!
 			entry := logrus.WithFields(logrus.Fields{
@@ -107,7 +104,7 @@ func (h *KubeLogParser) handleLine(lineStr string) error {
 			// Whelp. Normal format didn't work out, assume this line is simply unformatted...
 			logrus.WithFields(logrus.Fields{
 				"app": h.app,
-			}).Warn(lineStr)
+			}).Warn(strings.Trim(lineStr, "\n"))
 		}
 	}
 

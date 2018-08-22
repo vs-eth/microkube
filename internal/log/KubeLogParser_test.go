@@ -115,3 +115,43 @@ func TestInvalidKubeMessageType(t *testing.T) {
 		t.Fatalf("Unexpected output: %s", result)
 	}
 }
+
+// TestInvalidKubeMessage tests a completely invalid message
+func TestInvalidKubeMessag(t *testing.T) {
+	var buffer bytes.Buffer
+	logrus.SetLevel(logrus.DebugLevel)
+	logrus.SetOutput(&buffer)
+	logrus.SetFormatter(&logrus.JSONFormatter{
+		DisableTimestamp: true,
+	})
+	testStr := "foobarbaz\n"
+	uut := NewKubeLogParser("testkubeapp")
+	err := uut.HandleData([]byte(testStr))
+	if err != nil {
+		t.Fatalf("Unexpected error: %s", err)
+	}
+	result := buffer.String()
+	if result != "{\"app\":\"testkubeapp\",\"level\":\"warning\",\"msg\":\"foobarbaz\"}\n" {
+		t.Fatalf("Unexpected output: %s", result)
+	}
+}
+
+// TestInvalidKubeMessage tests a completely invalid message
+func TestIncompleteKubeMessag(t *testing.T) {
+	var buffer bytes.Buffer
+	logrus.SetLevel(logrus.DebugLevel)
+	logrus.SetOutput(&buffer)
+	logrus.SetFormatter(&logrus.JSONFormatter{
+		DisableTimestamp: true,
+	})
+	testStr := "[restful] 2018/08/12 17:00:09 log.go:33: [restful/swagger]\n"
+	uut := NewKubeLogParser("testkubeapp")
+	err := uut.HandleData([]byte(testStr))
+	if err != nil {
+		t.Fatalf("Unexpected error: %s", err)
+	}
+	result := buffer.String()
+	if result != "{\"app\":\"testkubeapp\",\"level\":\"warning\",\"msg\":\"[restful] 2018/08/12 17:00:09 log.go:33: [restful/swagger]\"}\n" {
+		t.Fatalf("Unexpected output: %s", result)
+	}
+}
