@@ -17,6 +17,7 @@
 package helpers
 
 import (
+	"context"
 	"os"
 	"os/exec"
 	"strings"
@@ -85,17 +86,36 @@ func TestEcho(t *testing.T) {
 		t.Error("Coudln't start program")
 		return
 	}
-	rc := <-exitWaiter
-	if !rc {
-		t.Error("Couldn't execute echo!")
+	ctx, _ := context.WithTimeout(context.Background(), 2*time.Second)
+	exitChecked, stdoutChecked, stderrChecked := false, false, false
+	for {
+		timeout := false
+		select {
+		case rc := <-exitWaiter:
+			if !rc {
+				t.Error("Couldn't execute echo!")
+			}
+			exitChecked = true
+		case str := <-exitStdout:
+			if strings.Trim(str, " \t\r\n") != "test" {
+				t.Error("Unexpected stdout: '", str, "'")
+			}
+			stdoutChecked = true
+		case str := <-exitStderr:
+			if strings.Trim(str, " \t\r\n") != "foobar" {
+				t.Error("Unexpected stderr: '", str, "'")
+			}
+			stderrChecked = true
+		case <-ctx.Done():
+			timeout = true
+		}
+		if timeout || (exitChecked && stderrChecked && stdoutChecked) {
+			break
+		}
 	}
-	str := <-exitStdout
-	if strings.Trim(str, " \t\r\n") != "test" {
-		t.Error("Unexpected stdout: '", str, "'")
-	}
-	str = <-exitStderr
-	if strings.Trim(str, " \t\r\n") != "foobar" {
-		t.Error("Unexpected stderr: '", str, "'")
+	if !exitChecked || !stderrChecked || !stdoutChecked {
+		t.Fatalf("Test timeouted, exitChecked: %t, stdoutChecked: %t, stderrChecked: %t", exitChecked, stdoutChecked,
+			stderrChecked)
 	}
 }
 
