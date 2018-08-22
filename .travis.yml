@@ -35,7 +35,10 @@ before_install:
 
 script:
 - go test -race -coverprofile=cover1 -covermode=atomic -run 'Test[^I][^n]' -v ./...
-- go test -race -coverprofile=cover2 -covermode=atomic -run 'TestIn' -v ./...
+- rm -Rf /tmp/microkube*
+- killall etcd || /bin/true
+- killall hyperkube || /bin/true
+- go test -coverprofile=cover2 -covermode=atomic -run 'TestIn' -v ./...
 
 install:
 - glide i
