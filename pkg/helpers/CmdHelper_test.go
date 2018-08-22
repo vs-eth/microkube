@@ -88,25 +88,26 @@ func TestEcho(t *testing.T) {
 	for {
 		timeout := false
 		select {
-		case rc := <-exitWaiter:
-			if !rc {
-				t.Fatal("Couldn't execute echo!")
-			}
-			exitChecked = true
 		case str := <-exitStdout:
 			stdout = stdout + strings.Trim(str, " \t\r\n") + " "
 			stdoutChecked = true
 		case <-ctx.Done():
 			timeout = true
 		}
-		if timeout || (exitChecked && stdoutChecked) {
+		if timeout {
 			break
 		}
+	}
+	ctx, _ = context.WithTimeout(context.Background(), 2*time.Second)
+	select {
+	case <-exitWaiter:
+		exitChecked = true
+	case <-ctx.Done():
 	}
 	if !strings.Contains(stdout, "test") {
 		t.Fatal("Unexpected stdout: '", stdout, "'")
 	}
-	if !exitChecked || !stdoutChecked {
+	if !stdoutChecked {
 		t.Fatalf("Test timeouted, exitChecked: %t, stdoutChecked: %t", exitChecked, stdoutChecked)
 	}
 }
