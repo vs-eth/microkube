@@ -30,10 +30,10 @@ import (
 type UUTConstrutor func(execEnv handlers.ExecutionEnvironment, creds *pki.MicrokubeCredentials) ([]handlers.ServiceHandler, error)
 
 // StartHandlerForTest starts a given handler for a unit test
-func StartHandlerForTest(name, binary string, constructor UUTConstrutor, exitHandler handlers.ExitHandler, print bool, healthCheckTries int, credsArg *pki.MicrokubeCredentials) (handlerList []handlers.ServiceHandler, creds *pki.MicrokubeCredentials, err error) {
+func StartHandlerForTest(portbase int, name, binary string, constructor UUTConstrutor, exitHandler handlers.ExitHandler, print bool, healthCheckTries int, credsArg *pki.MicrokubeCredentials, execEnvArg *handlers.ExecutionEnvironment) (handlerList []handlers.ServiceHandler, creds *pki.MicrokubeCredentials, execEnv *handlers.ExecutionEnvironment, err error) {
 	tmpdir, err := ioutil.TempDir("", "microkube-unittests-"+name)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, nil, err
 	}
 
 	outputHandler := func(output []byte) {
@@ -51,26 +51,31 @@ func StartHandlerForTest(name, binary string, constructor UUTConstrutor, exitHan
 
 	wd, err := FindBinary(binary, "", "")
 	if err != nil {
-		return nil, nil, fmt.Errorf("error while searching for "+name+" binary: '%s'", err)
+		return nil, nil, nil, fmt.Errorf("error while searching for "+name+" binary: '%s'", err)
 	}
 
-	execEnv := handlers.ExecutionEnvironment{
+	execEnv = &handlers.ExecutionEnvironment{
 		Binary:        wd,
 		ListenAddress: net.ParseIP("127.0.0.1"),
 		OutputHandler: outputHandler,
 		ExitHandler:   exitHandler,
 		Workdir:       tmpdir,
 	}
+	if execEnvArg == nil {
+		execEnv.InitPorts(portbase)
+	} else {
+		execEnv.CopyPorts(execEnvArg)
+	}
 
 	// UUT
-	handlerList, err = constructor(execEnv, creds)
+	handlerList, err = constructor(*execEnv, creds)
 	if err != nil {
-		return nil, nil, fmt.Errorf(name+" handler creation failed: '%s'", err)
+		return nil, nil, nil, fmt.Errorf(name+" handler creation failed: '%s'", err)
 	}
 	handler := handlerList[len(handlerList)-1]
 	err = handler.Start()
 	if err != nil {
-		return nil, nil, fmt.Errorf(name+" startup failed: '%s'", err)
+		return nil, nil, nil, fmt.Errorf(name+" startup failed: '%s'", err)
 	}
 
 	healthMessage := make(chan handlers.HealthMessage, 1)
@@ -83,8 +88,8 @@ func StartHandlerForTest(name, binary string, constructor UUTConstrutor, exitHan
 		time.Sleep(1 * time.Second)
 	}
 	if !msg.IsHealthy {
-		return nil, nil, fmt.Errorf(name+" unhealthy: %s", msg.Error)
+		return nil, nil, nil, fmt.Errorf(name+" unhealthy: %s", msg.Error)
 	}
 
-	return handlerList, creds, nil
+	return handlerList, creds, execEnv, nil
 }

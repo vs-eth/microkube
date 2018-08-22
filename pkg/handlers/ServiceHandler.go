@@ -64,4 +64,41 @@ type ExecutionEnvironment struct {
 	OutputHandler OutputHandler
 	// ExitHandler to notify on command exit
 	ExitHandler ExitHandler
+
+	EtcdClientPort            int
+	EtcdPeerPort              int
+	KubeApiPort               int
+	KubeNodeApiPort           int
+	KubeControllerManagerPort int
+	KubeletHealthPort         int
+	KubeProxyHealthPort       int
+	KubeProxyMetricsPort      int
+	KubeSchedulerHealthPort   int
+	KubeSchedulerMetricsPort  int
+}
+
+func (e *ExecutionEnvironment) InitPorts(base int) {
+	e.EtcdClientPort = base
+	e.EtcdPeerPort = base + 1
+	e.KubeApiPort = base + 2
+	e.KubeNodeApiPort = base + 3
+	e.KubeControllerManagerPort = base + 4
+	e.KubeletHealthPort = base + 5
+	e.KubeProxyHealthPort = base + 6
+	e.KubeProxyMetricsPort = base + 7
+	e.KubeSchedulerHealthPort = base + 8
+	e.KubeSchedulerMetricsPort = base + 9
+}
+
+func (e *ExecutionEnvironment) CopyPorts(o *ExecutionEnvironment) {
+	e.EtcdClientPort = o.EtcdClientPort
+	e.EtcdPeerPort = o.EtcdPeerPort
+	e.KubeApiPort = o.KubeApiPort
+	e.KubeNodeApiPort = o.KubeNodeApiPort
+	e.KubeControllerManagerPort = o.KubeControllerManagerPort
+	e.KubeletHealthPort = o.KubeletHealthPort
+	e.KubeProxyHealthPort = o.KubeProxyHealthPort
+	e.KubeProxyMetricsPort = o.KubeProxyMetricsPort
+	e.KubeSchedulerHealthPort = o.KubeSchedulerHealthPort
+	e.KubeSchedulerMetricsPort = o.KubeSchedulerMetricsPort
 }

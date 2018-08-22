@@ -24,6 +24,7 @@ import (
 	"github.com/uubk/microkube/pkg/pki"
 	"io"
 	"path"
+	"strconv"
 )
 
 // KubeProxyHandler handles invocation of the kubernetes proxy
@@ -58,12 +59,12 @@ func NewKubeProxyHandler(execEnv handlers.ExecutionEnvironment, creds *pki.Micro
 		sudoBin:    execEnv.SudoMethod,
 	}
 
-	err := CreateKubeProxyConfig(obj.config, cidr, creds.Kubeconfig)
+	err := CreateKubeProxyConfig(obj.config, cidr, creds.Kubeconfig, execEnv)
 	if err != nil {
 		return nil, err
 	}
 
-	obj.BaseServiceHandler = *handlers.NewHandler(execEnv.ExitHandler, obj.healthCheckFun, "http://localhost:10256/healthz",
+	obj.BaseServiceHandler = *handlers.NewHandler(execEnv.ExitHandler, obj.healthCheckFun, "http://localhost:"+strconv.Itoa(execEnv.KubeProxyHealthPort)+"/healthz",
 		obj.stop, obj.Start, nil, nil)
 	return obj, nil
 }

@@ -24,6 +24,7 @@ import (
 	"io"
 	"io/ioutil"
 	"path"
+	"strconv"
 	"strings"
 )
 
@@ -53,12 +54,12 @@ func NewKubeSchedulerHandler(execEnv handlers.ExecutionEnvironment, creds *pki.M
 		config:     path.Join(execEnv.Workdir, "kube-scheduler.cfg"),
 	}
 
-	err := CreateKubeSchedulerConfig(obj.config, creds.Kubeconfig)
+	err := CreateKubeSchedulerConfig(obj.config, creds.Kubeconfig, execEnv)
 	if err != nil {
 		return nil, err
 	}
 
-	obj.BaseServiceHandler = *handlers.NewHandler(execEnv.ExitHandler, obj.healthCheckFun, "http://localhost:10251/healthz",
+	obj.BaseServiceHandler = *handlers.NewHandler(execEnv.ExitHandler, obj.healthCheckFun, "http://localhost:"+strconv.Itoa(execEnv.KubeSchedulerHealthPort)+"/healthz",
 		obj.stop, obj.Start, nil, nil)
 	return obj, nil
 }

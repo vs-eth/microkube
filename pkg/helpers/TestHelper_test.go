@@ -96,10 +96,10 @@ func testUUTConstructorConstructor(t *testing.T, errorCallCount int) func(execEn
 // TestStartHandlerForTest uses StartHandlerForTest to start a dummy handler
 func TestStartHandlerForTest(t *testing.T) {
 	handler := testUUTConstructorConstructor(t, 0)
-	handlerList, _, err := StartHandlerForTest("testhandler", "/bin/bash", handler, func(success bool,
+	handlerList, _, _, err := StartHandlerForTest(123, "testhandler", "/bin/bash", handler, func(success bool,
 		exitError *exec.ExitError) {
 
-	}, true, 1, nil)
+	}, true, 1, nil, nil)
 	if err != nil {
 		t.Fatalf("Unexpected error: %s", err)
 	}
@@ -112,10 +112,10 @@ func TestStartHandlerForTest(t *testing.T) {
 func TestStartHandlerForTestErrors(t *testing.T) {
 	// Inject fault into start
 	handler := testUUTConstructorConstructor(t, 2)
-	_, _, err := StartHandlerForTest("testhandler", "/bin/bash", handler, func(success bool,
+	_, _, _, err := StartHandlerForTest(123, "testhandler", "/bin/bash", handler, func(success bool,
 		exitError *exec.ExitError) {
 
-	}, false, 1, nil)
+	}, false, 1, nil, nil)
 	if err == nil {
 		t.Fatal("Expected error missing!")
 	}
@@ -125,10 +125,10 @@ func TestStartHandlerForTestErrors(t *testing.T) {
 
 	// Inject fault into constructor
 	handler = testUUTConstructorConstructor(t, 1)
-	_, _, err = StartHandlerForTest("testhandler", "/bin/bash", handler, func(success bool,
+	_, _, _, err = StartHandlerForTest(123, "testhandler", "/bin/bash", handler, func(success bool,
 		exitError *exec.ExitError) {
 
-	}, false, 1, nil)
+	}, false, 1, nil, nil)
 	if err == nil {
 		t.Fatal("Expected error missing!")
 	}
@@ -138,10 +138,10 @@ func TestStartHandlerForTestErrors(t *testing.T) {
 
 	// Inject fault into health check
 	handler = testUUTConstructorConstructor(t, 3)
-	_, _, err = StartHandlerForTest("testhandler", "/bin/bash", handler, func(success bool,
+	_, _, _, err = StartHandlerForTest(123, "testhandler", "/bin/bash", handler, func(success bool,
 		exitError *exec.ExitError) {
 
-	}, false, 1, nil)
+	}, false, 1, nil, nil)
 	if err == nil {
 		t.Fatal("Expected error missing!")
 	}
@@ -151,10 +151,10 @@ func TestStartHandlerForTestErrors(t *testing.T) {
 
 	// Inject fault into binary check
 	handler = testUUTConstructorConstructor(t, 0)
-	_, _, err = StartHandlerForTest("testhandler", "/bin/bashbashbashbashbashABC", handler, func(success bool,
+	_, _, _, err = StartHandlerForTest(123, "testhandler", "/bin/bashbashbashbashbashABC", handler, func(success bool,
 		exitError *exec.ExitError) {
 
-	}, false, 1, nil)
+	}, false, 1, nil, nil)
 	if err == nil {
 		t.Fatal("Expected error missing!")
 	}

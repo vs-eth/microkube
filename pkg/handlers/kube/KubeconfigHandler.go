@@ -19,6 +19,7 @@ package kube
 import (
 	"encoding/base64"
 	"github.com/pkg/errors"
+	"github.com/uubk/microkube/pkg/handlers"
 	"github.com/uubk/microkube/pkg/pki"
 	"html/template"
 	"io/ioutil"
@@ -35,6 +36,8 @@ type clientTemplateData struct {
 	Clientkey string
 	// Address of api server (IP/DNS as string)
 	Address string
+	// Kube API port
+	ApiPort int
 }
 
 // Base64EncodedPem encodes file 'src' as base64 and return it as string
@@ -48,9 +51,12 @@ func Base64EncodedPem(src string) (string, error) {
 
 // CreateClientKubeconfig creates a certificate-based kubeconfig with an apiserver at "https://<host>:7443" and stores
 // it in 'path'
-func CreateClientKubeconfig(creds *pki.MicrokubeCredentials, path, host string) error {
+func CreateClientKubeconfig(execEnv handlers.ExecutionEnvironment, creds *pki.MicrokubeCredentials, path,
+	host string) error {
+
 	data := clientTemplateData{
 		Address: host,
+		ApiPort: execEnv.KubeApiPort,
 	}
 	var err error
 	data.Ca, err = Base64EncodedPem(creds.KubeCA.CertPath)
@@ -70,7 +76,7 @@ kind: Config
 clusters:
 - name: microkube
   cluster:
-    server: https://{{ .Address }}:7443
+    server: https://{{ .Address }}:{{ .ApiPort }}
     certificate-authority-data: {{ .Ca }} 
 users:
 - name: admin

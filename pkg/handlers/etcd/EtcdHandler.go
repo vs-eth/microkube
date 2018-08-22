@@ -59,8 +59,8 @@ func NewEtcdHandler(execEnv handlers.ExecutionEnvironment, creds *pki.MicrokubeC
 	obj := &EtcdHandler{
 		datadir:    execEnv.Workdir,
 		binary:     execEnv.Binary,
-		clientport: 2379,
-		peerport:   2380,
+		clientport: execEnv.EtcdClientPort,
+		peerport:   execEnv.EtcdPeerPort,
 		servercert: creds.EtcdServer.CertPath,
 		serverkey:  creds.EtcdServer.KeyPath,
 		cacert:     creds.EtcdCA.CertPath,
@@ -130,15 +130,11 @@ func (handler *EtcdHandler) healthCheckFun(responseBin *io.ReadCloser) error {
 }
 
 // EtcdHandlerConstructor is supposed to be only used for testing
-func EtcdHandlerConstructor(firstPort int) func(execEnv handlers.ExecutionEnvironment, creds *pki.MicrokubeCredentials) ([]handlers.ServiceHandler, error) {
-	return func(execEnv handlers.ExecutionEnvironment, creds *pki.MicrokubeCredentials) ([]handlers.ServiceHandler, error) {
-		handler := NewEtcdHandler(execEnv, creds)
-		handler.clientport = firstPort
-		handler.peerport = firstPort + 1
-		handler.BaseServiceHandler = *handlers.NewHandler(handler.exit, handler.healthCheckFun,
-			"https://localhost:"+strconv.Itoa(handler.clientport)+"/health", handler.stop, handler.Start, creds.EtcdCA, creds.EtcdClient)
-		return []handlers.ServiceHandler{
-			handler,
-		}, nil
-	}
+func EtcdHandlerConstructor(execEnv handlers.ExecutionEnvironment, creds *pki.MicrokubeCredentials) ([]handlers.ServiceHandler, error) {
+	handler := NewEtcdHandler(execEnv, creds)
+	handler.BaseServiceHandler = *handlers.NewHandler(handler.exit, handler.healthCheckFun,
+		"https://localhost:"+strconv.Itoa(handler.clientport)+"/health", handler.stop, handler.Start, creds.EtcdCA, creds.EtcdClient)
+	return []handlers.ServiceHandler{
+		handler,
+	}, nil
 }

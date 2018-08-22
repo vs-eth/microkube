@@ -53,6 +53,8 @@ type ControllerManagerHandler struct {
 	bindAddress string
 	// Output handler
 	out handlers.OutputHandler
+	// API listen port
+	kubeControllerManagerPort int
 }
 
 // NewControllerManagerHandler creates a ControllerManagerHandler from the arguments provided
@@ -60,17 +62,18 @@ func NewControllerManagerHandler(execEnv handlers.ExecutionEnvironment, creds *p
 	podRange string) *ControllerManagerHandler {
 
 	obj := &ControllerManagerHandler{
-		binary:            execEnv.Binary,
-		kubeServerCert:    creds.KubeServer.CertPath,
-		kubeServerKey:     creds.KubeServer.KeyPath,
-		cmd:               nil,
-		out:               execEnv.OutputHandler,
-		kubeconfig:        creds.Kubeconfig,
-		bindAddress:       execEnv.ListenAddress.String(),
-		kubeClusterCACert: creds.KubeClusterCA.CertPath,
-		kubeClusterCAKey:  creds.KubeClusterCA.KeyPath,
-		podRange:          podRange,
-		kubeSvcKey:        creds.KubeSvcSignCert.KeyPath,
+		binary:                    execEnv.Binary,
+		kubeServerCert:            creds.KubeServer.CertPath,
+		kubeServerKey:             creds.KubeServer.KeyPath,
+		cmd:                       nil,
+		out:                       execEnv.OutputHandler,
+		kubeconfig:                creds.Kubeconfig,
+		bindAddress:               execEnv.ListenAddress.String(),
+		kubeClusterCACert:         creds.KubeClusterCA.CertPath,
+		kubeClusterCAKey:          creds.KubeClusterCA.KeyPath,
+		podRange:                  podRange,
+		kubeSvcKey:                creds.KubeSvcSignCert.KeyPath,
+		kubeControllerManagerPort: execEnv.KubeControllerManagerPort,
 	}
 
 	obj.BaseServiceHandler = *handlers.NewHandler(execEnv.ExitHandler, obj.healthCheckFun,
@@ -128,9 +131,12 @@ func (handler *ControllerManagerHandler) healthCheckFun(responseBin *io.ReadClos
 }
 
 // kubeControllerManagerConstructor is supposed to be only used for testing
-func kubeControllerManagerConstructor(execEnv handlers.ExecutionEnvironment, creds *pki.MicrokubeCredentials) ([]handlers.ServiceHandler, error) {
+func kubeControllerManagerConstructor(execEnv handlers.ExecutionEnvironment,
+	creds *pki.MicrokubeCredentials) ([]handlers.ServiceHandler, error) {
+
 	// Start apiserver (and etcd)
-	handlerList, otherCreds, err := helpers.StartHandlerForTest("kube-apiserver", "hyperkube", kubeApiServerConstructor, execEnv.ExitHandler, false, 30, creds)
+	handlerList, otherCreds, _, err := helpers.StartHandlerForTest(-1, "kube-apiserver", "hyperkube",
+		kubeApiServerConstructor, execEnv.ExitHandler, false, 30, creds, &execEnv)
 	if err != nil {
 		return handlerList, errors.Wrap(err, "kube-apiserver startup prereq failed")
 	}
@@ -143,7 +149,7 @@ func kubeControllerManagerConstructor(execEnv handlers.ExecutionEnvironment, cre
 		errors.Wrap(err, "tempdir creation failed")
 	}
 	kubeconfig := path.Join(tmpdir, "kubeconfig")
-	err = CreateClientKubeconfig(creds, kubeconfig, "127.0.0.1")
+	err = CreateClientKubeconfig(execEnv, creds, kubeconfig, "127.0.0.1")
 	if err != nil {
 		return handlerList, errors.Wrap(err, "kubeconfig creation failed")
 	}

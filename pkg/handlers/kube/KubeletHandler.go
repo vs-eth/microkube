@@ -25,6 +25,7 @@ import (
 	"io/ioutil"
 	"os"
 	"path"
+	"strconv"
 	"strings"
 )
 
@@ -75,13 +76,14 @@ func NewKubeletHandler(execEnv handlers.ExecutionEnvironment, creds *pki.Microku
 	os.Mkdir(path.Join(execEnv.Workdir, "kubelet"), 0770)
 	os.Mkdir(path.Join(execEnv.Workdir, "staticpods"), 0770)
 
-	err := CreateKubeletConfig(obj.config, creds, path.Join(execEnv.Workdir, "staticpods"))
+	err := CreateKubeletConfig(obj.config, creds, execEnv, path.Join(execEnv.Workdir, "staticpods"))
 	if err != nil {
 		return nil, err
 	}
 
-	obj.BaseServiceHandler = *handlers.NewHandler(execEnv.ExitHandler, obj.healthCheckFun, "http://localhost:10248/healthz",
-		obj.stop, obj.Start, creds.KubeCA, creds.KubeClient)
+	obj.BaseServiceHandler = *handlers.NewHandler(execEnv.ExitHandler, obj.healthCheckFun,
+		"http://localhost:"+strconv.Itoa(execEnv.KubeletHealthPort)+"/healthz", obj.stop, obj.Start,
+		creds.KubeCA, creds.KubeClient)
 	return obj, nil
 }
 

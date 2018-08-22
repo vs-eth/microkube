@@ -71,6 +71,8 @@ func (h *ETCDLogParser) handleLine(lineStr string) error {
 		entry.Info(line.Message)
 	case "E":
 		entry.Error(line.Message)
+	case "C":
+		entry.Error(line.Message)
 	case "W":
 		entry.Warning(line.Message)
 	case "D":

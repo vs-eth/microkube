@@ -74,6 +74,8 @@ type Microkubed struct {
 
 	// Struct with all credentials needed for any given service
 	cred *pki.MicrokubeCredentials
+	// Template struct with information needed for execution of programs
+	baseExecEnv handlers.ExecutionEnvironment
 
 	// Path to etcd server binary
 	etcdBin string
@@ -201,6 +203,7 @@ func (m *Microkubed) startEtcd() {
 			Workdir:       path.Join(m.baseDir, "etcddata"),
 			SudoMethod:    m.sudoMethod,
 		}
+		execEnv.CopyPorts(&m.baseExecEnv)
 		return etcd.NewEtcdHandler(execEnv, m.cred), nil
 	}, log2.NewETCDLogParser())
 	m.serviceHandlers = append(m.serviceHandlers, etcdHandler)
@@ -229,6 +232,7 @@ func (m *Microkubed) startKubeAPIServer() {
 				ServiceAddress: m.serviceRangeIP,
 				SudoMethod:     m.sudoMethod,
 			}
+			execEnv.CopyPorts(&m.baseExecEnv)
 			return kube.NewKubeAPIServerHandler(execEnv, m.cred, m.serviceRangeNet.String()), nil
 		}, log2.NewKubeLogParser("kube-api"))
 	m.serviceHandlers = append(m.serviceHandlers, kubeAPIHandler)
@@ -240,7 +244,7 @@ func (m *Microkubed) startKubeAPIServer() {
 	_, err := os.Stat(kubeconfig)
 	if err != nil {
 		log.Debug("Creating kubeconfig")
-		err = kube.CreateClientKubeconfig(m.cred, kubeconfig, m.bindAddr.String())
+		err = kube.CreateClientKubeconfig(m.baseExecEnv, m.cred, kubeconfig, m.bindAddr.String())
 		if err != nil {
 			log.WithError(err).Fatal("Couldn't create kubeconfig!")
 			return
@@ -271,6 +275,7 @@ func (m *Microkubed) startKubeControllerManager() {
 				ServiceAddress: m.serviceRangeIP,
 				SudoMethod:     m.sudoMethod,
 			}
+			execEnv.CopyPorts(&m.baseExecEnv)
 			return kube.NewControllerManagerHandler(execEnv, m.cred, m.podRangeNet.String()), nil
 		}, log2.NewKubeLogParser("kube-controller-manager"))
 	m.serviceHandlers = append(m.serviceHandlers, kubeCtrlMgrHandler)
@@ -300,6 +305,7 @@ func (m *Microkubed) startKubeScheduler() {
 				ServiceAddress: m.serviceRangeIP,
 				SudoMethod:     m.sudoMethod,
 			}
+			execEnv.CopyPorts(&m.baseExecEnv)
 			return kube.NewKubeSchedulerHandler(execEnv, m.cred)
 		}, log2.NewKubeLogParser("kube-scheduler"))
 	m.serviceHandlers = append(m.serviceHandlers, kubeSchedHandler)
@@ -329,6 +335,7 @@ func (m *Microkubed) startKubelet() {
 				ServiceAddress: m.serviceRangeIP,
 				SudoMethod:     m.sudoMethod,
 			}
+			execEnv.CopyPorts(&m.baseExecEnv)
 			return kube.NewKubeletHandler(execEnv, m.cred)
 		}, log2.NewKubeLogParser("kubelet"))
 	m.serviceHandlers = append(m.serviceHandlers, kubeletHandler)
@@ -357,6 +364,7 @@ func (m *Microkubed) startKubeProxy() {
 				ServiceAddress: m.serviceRangeIP,
 				SudoMethod:     m.sudoMethod,
 			}
+			execEnv.CopyPorts(&m.baseExecEnv)
 			return kube.NewKubeProxyHandler(execEnv, m.cred, m.clusterIPRange.String())
 		}, log2.NewKubeLogParser("kube-proxy"))
 	defer kubeProxyHandler.Stop()
@@ -474,6 +482,7 @@ func (m *Microkubed) start() {
 	}
 
 	m.findBinaries()
+	m.baseExecEnv.InitPorts(7000)
 
 	m.startEtcd()
 	m.startKubeAPIServer()

@@ -17,6 +17,7 @@
 package cmd
 
 import (
+	"fmt"
 	"github.com/sirupsen/logrus"
 	"github.com/uubk/microkube/internal/cmd"
 	"io/ioutil"
@@ -48,5 +49,6 @@ func TestIntegrationMicrokubed(t *testing.T) {
 	obj.gracefulTerminationMode = false
 	obj.start()
 	obj.waitUntilNodeReady()
+	fmt.Println("All fine")
 	// Cluster is running, node is healthy, we're done here
 }
