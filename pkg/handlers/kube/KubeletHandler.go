@@ -36,6 +36,8 @@ type KubeletHandler struct {
 
 	// Path to kubelet binary
 	binary string
+	// Path to some sudo-like binary
+	sudoBin string
 	// Path to kubernetes server certificate
 	kubeServerCert string
 	// Path to kubernetes server certificate's key
@@ -68,6 +70,7 @@ func NewKubeletHandler(execEnv handlers.ExecutionEnvironment, creds *pki.Microku
 		kubeconfig:     creds.Kubeconfig,
 		listenAddress:  execEnv.ListenAddress.String(),
 		config:         path.Join(execEnv.Workdir, "kubelet.cfg"),
+		sudoBin:        execEnv.SudoMethod,
 	}
 	os.Mkdir(path.Join(execEnv.Workdir, "kubelet"), 0770)
 	os.Mkdir(path.Join(execEnv.Workdir, "staticpods"), 0770)
@@ -91,7 +94,7 @@ func (handler *KubeletHandler) stop() {
 
 // Start starts the process, see interface docs
 func (handler *KubeletHandler) Start() error {
-	handler.cmd = helpers.NewCmdHandler("pkexec", []string{
+	handler.cmd = helpers.NewCmdHandler(handler.sudoBin, []string{
 		handler.binary,
 		"kubelet",
 		"--config",

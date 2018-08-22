@@ -35,6 +35,8 @@ type KubeProxyHandler struct {
 
 	// Path to kube proxy binary
 	binary string
+	// Path to some sudo-like binary
+	sudoBin string
 	// Path to kubeconfig
 	kubeconfig string
 	// Path to proxy config (!= kubeconfig, replacement for commandline flags)
@@ -53,6 +55,7 @@ func NewKubeProxyHandler(execEnv handlers.ExecutionEnvironment, creds *pki.Micro
 		out:        execEnv.OutputHandler,
 		kubeconfig: creds.Kubeconfig,
 		config:     path.Join(execEnv.Workdir, "kube-proxy.cfg"),
+		sudoBin:    execEnv.SudoMethod,
 	}
 
 	err := CreateKubeProxyConfig(obj.config, cidr, creds.Kubeconfig)
@@ -74,7 +77,7 @@ func (handler *KubeProxyHandler) stop() {
 
 // Start starts the process, see interface docs
 func (handler *KubeProxyHandler) Start() error {
-	handler.cmd = helpers.NewCmdHandler("pkexec", []string{
+	handler.cmd = helpers.NewCmdHandler(handler.sudoBin, []string{
 		handler.binary,
 		"kube-proxy",
 		"--config",
