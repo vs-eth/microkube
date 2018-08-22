@@ -18,17 +18,17 @@ cache:
 before_install:
 # We need glide, etcd and hyperkube
 - cd .deps
-- wget -N https://github.com/Masterminds/glide/releases/download/v0.13.1/glide-v0.13.1-linux-amd64.zip
-- wget -N https://github.com/coreos/etcd/releases/download/v3.3.9/etcd-v3.3.9-linux-amd64.tar.gz
-- wget -N https://dl.k8s.io/v1.11.2/kubernetes-server-linux-amd64.tar.gz
-- wget -N https://github.com/containernetworking/plugins/releases/download/v0.7.1/cni-plugins-amd64-v0.7.1.tgz
+- wget -qN https://github.com/Masterminds/glide/releases/download/v0.13.1/glide-v0.13.1-linux-amd64.zip
+- wget -qN https://github.com/coreos/etcd/releases/download/v3.3.9/etcd-v3.3.9-linux-amd64.tar.gz
+- wget -qN https://dl.k8s.io/v1.11.2/kubernetes-server-linux-amd64.tar.gz
+- wget -qN https://github.com/containernetworking/plugins/releases/download/v0.7.1/cni-plugins-amd64-v0.7.1.tgz
 - sha256sum -c .ci.sha256sum
 - unzip glide-v0.13.1-linux-amd64.zip
 - mv linux-amd64/glide $GOPATH/bin/ && chmod +x $GOPATH/bin/glide
 - cd ..
 - mkdir third_party
-- tar -xvf .deps/kubernetes-server-linux-amd64.tar.gz
-- tar -xvf .deps/etcd-v3.3.9-linux-amd64.tar.gz
+- tar -xf .deps/kubernetes-server-linux-amd64.tar.gz
+- tar -xf .deps/etcd-v3.3.9-linux-amd64.tar.gz
 - mv kubernetes/server/bin/hyperkube third_party
 - mv etcd-v3.3.9-linux-amd64/etcd third_party
 - rm -Rf kubernetes

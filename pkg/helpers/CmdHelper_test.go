@@ -103,6 +103,21 @@ func TestEcho(t *testing.T) {
 			break
 		}
 	}
+	// At this point, there might be still something in the output channel buffer
+	for {
+		done := false
+		select {
+		case str := <-exitStdout:
+			stdout = stdout + strings.Trim(str, " \t\r\n") + " "
+			stdoutChecked = true
+		default:
+			done = true
+		}
+		if done {
+			break
+		}
+	}
+
 	if !strings.Contains(stdout, "test") || !strings.Contains(stdout, "foobar") {
 		t.Fatal("Unexpected stdout: '", stdout, "'")
 	}
