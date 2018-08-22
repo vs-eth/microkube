@@ -33,12 +33,12 @@ type CmdHandler struct {
 	args   []string
 	cmd    *exec.Cmd
 	exit   handlers.ExitHandler
-	stdout handlers.OutputHander
-	stderr handlers.OutputHander
+	stdout handlers.OutputHandler
+	stderr handlers.OutputHandler
 }
 
 // NewCmdHandler creates a CmdHandler for the arguments provided
-func NewCmdHandler(binary string, args []string, exit handlers.ExitHandler, stdout handlers.OutputHander, stderr handlers.OutputHander) *CmdHandler {
+func NewCmdHandler(binary string, args []string, exit handlers.ExitHandler, stdout handlers.OutputHandler, stderr handlers.OutputHandler) *CmdHandler {
 	return &CmdHandler{
 		binary: binary,
 		args:   args,

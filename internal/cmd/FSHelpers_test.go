@@ -17,6 +17,7 @@
 package cmd
 
 import (
+	"github.com/sirupsen/logrus"
 	"io/ioutil"
 	"os"
 	"path"
@@ -26,6 +27,7 @@ import (
 
 // Test whether EnsureDir works
 func TestEnsureDir(t *testing.T) {
+	logrus.SetLevel(logrus.FatalLevel)
 	tempDir, err := ioutil.TempDir("", "TestEnsureDir")
 	if err != nil {
 		t.Fatal("tempDir creation failed", err)

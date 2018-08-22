@@ -20,6 +20,7 @@ import (
 	"errors"
 	"github.com/uubk/microkube/pkg/handlers"
 	"github.com/uubk/microkube/pkg/helpers"
+	"github.com/uubk/microkube/pkg/pki"
 	"io"
 	"io/ioutil"
 	"path"
@@ -39,25 +40,25 @@ type KubeSchedulerHandler struct {
 	// Path to scheduler config (!= kubeconfig, replacement for commandline flags)
 	config string
 	// Output handler
-	out handlers.OutputHander
+	out handlers.OutputHandler
 }
 
 // NewKubeSchedulerHandler creates a KubeSchedulerHandler from the arguments provided
-func NewKubeSchedulerHandler(binary, root, kubeconfig string, out handlers.OutputHander, exit handlers.ExitHandler) (*KubeSchedulerHandler, error) {
+func NewKubeSchedulerHandler(execEnv handlers.ExecutionEnvironment, creds *pki.MicrokubeCredentials) (*KubeSchedulerHandler, error) {
 	obj := &KubeSchedulerHandler{
-		binary:     binary,
+		binary:     execEnv.Binary,
 		cmd:        nil,
-		out:        out,
-		kubeconfig: kubeconfig,
-		config:     path.Join(root, "kube-scheduler.cfg"),
+		out:        execEnv.OutputHandler,
+		kubeconfig: creds.Kubeconfig,
+		config:     path.Join(execEnv.Workdir, "kube-scheduler.cfg"),
 	}
 
-	err := CreateKubeSchedulerConfig(obj.config, kubeconfig)
+	err := CreateKubeSchedulerConfig(obj.config, creds.Kubeconfig)
 	if err != nil {
 		return nil, err
 	}
 
-	obj.BaseServiceHandler = *handlers.NewHandler(exit, obj.healthCheckFun, "http://localhost:10251/healthz",
+	obj.BaseServiceHandler = *handlers.NewHandler(execEnv.ExitHandler, obj.healthCheckFun, "http://localhost:10251/healthz",
 		obj.stop, obj.Start, nil, nil)
 	return obj, nil
 }

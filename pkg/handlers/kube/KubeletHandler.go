@@ -52,33 +52,33 @@ type KubeletHandler struct {
 	// Path to kubelet config (!= kubeconfig, replacement for commandline flags)
 	config string
 	// Output handler
-	out handlers.OutputHander
+	out handlers.OutputHandler
 }
 
 // NewKubeletHandler creates a KubeletHandler from the arguments provided
-func NewKubeletHandler(binary, root, kubeconfig, listenAddress string, server, client, ca *pki.RSACertificate, out handlers.OutputHander, exit handlers.ExitHandler) (*KubeletHandler, error) {
+func NewKubeletHandler(execEnv handlers.ExecutionEnvironment, creds *pki.MicrokubeCredentials) (*KubeletHandler, error) {
 	obj := &KubeletHandler{
-		binary:         binary,
-		kubeServerCert: server.CertPath,
-		kubeServerKey:  server.KeyPath,
-		kubeCACert:     ca.CertPath,
+		binary:         execEnv.Binary,
+		kubeServerCert: creds.KubeServer.CertPath,
+		kubeServerKey:  creds.KubeServer.KeyPath,
+		kubeCACert:     creds.KubeCA.CertPath,
 		cmd:            nil,
-		out:            out,
-		rootDir:        root,
-		kubeconfig:     kubeconfig,
-		listenAddress:  listenAddress,
-		config:         path.Join(root, "kubelet.cfg"),
+		out:            execEnv.OutputHandler,
+		rootDir:        execEnv.Workdir,
+		kubeconfig:     creds.Kubeconfig,
+		listenAddress:  execEnv.ListenAddress.String(),
+		config:         path.Join(execEnv.Workdir, "kubelet.cfg"),
 	}
-	os.Mkdir(path.Join(root, "kubelet"), 0770)
-	os.Mkdir(path.Join(root, "staticpods"), 0770)
+	os.Mkdir(path.Join(execEnv.Workdir, "kubelet"), 0770)
+	os.Mkdir(path.Join(execEnv.Workdir, "staticpods"), 0770)
 
-	err := CreateKubeletConfig(obj.config, server, ca, path.Join(root, "staticpods"))
+	err := CreateKubeletConfig(obj.config, creds, path.Join(execEnv.Workdir, "staticpods"))
 	if err != nil {
 		return nil, err
 	}
 
-	obj.BaseServiceHandler = *handlers.NewHandler(exit, obj.healthCheckFun, "http://localhost:10248/healthz",
-		obj.stop, obj.Start, ca, client)
+	obj.BaseServiceHandler = *handlers.NewHandler(execEnv.ExitHandler, obj.healthCheckFun, "http://localhost:10248/healthz",
+		obj.stop, obj.Start, creds.KubeCA, creds.KubeClient)
 	return obj, nil
 }
 

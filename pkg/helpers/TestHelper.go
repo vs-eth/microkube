@@ -18,26 +18,22 @@ package helpers
 
 import (
 	"fmt"
-	"github.com/pkg/errors"
 	"github.com/uubk/microkube/pkg/handlers"
 	"github.com/uubk/microkube/pkg/pki"
 	"io/ioutil"
+	"net"
 	"time"
 )
 
 // UUTConstrutor is implemented by all types that use this simplified mechanism to be tested and is used to create a
 // test object with all related resources
-type UUTConstrutor func(ca, server, client *pki.RSACertificate, binary, workdir string, outputHandler handlers.OutputHander, exitHandler handlers.ExitHandler) ([]handlers.ServiceHandler, error)
+type UUTConstrutor func(execEnv handlers.ExecutionEnvironment, creds *pki.MicrokubeCredentials) ([]handlers.ServiceHandler, error)
 
 // StartHandlerForTest starts a given handler for a unit test
-func StartHandlerForTest(name, binary string, constructor UUTConstrutor, exitHandler handlers.ExitHandler, print bool, healthCheckTries int) (handlerList []handlers.ServiceHandler, ca *pki.RSACertificate, client *pki.RSACertificate, server *pki.RSACertificate, err error) {
+func StartHandlerForTest(name, binary string, constructor UUTConstrutor, exitHandler handlers.ExitHandler, print bool, healthCheckTries int, credsArg *pki.MicrokubeCredentials) (handlerList []handlers.ServiceHandler, creds *pki.MicrokubeCredentials, err error) {
 	tmpdir, err := ioutil.TempDir("", "microkube-unittests-"+name)
 	if err != nil {
-		errors.Wrap(err, "tempdir creation failed")
-	}
-	ca, server, client, err = CertHelper(tmpdir, name+"-unittest")
-	if err != nil {
-		return nil, nil, nil, nil, errors.Wrap(err, "error in PKI handler")
+		return nil, nil, err
 	}
 
 	outputHandler := func(output []byte) {
@@ -46,20 +42,35 @@ func StartHandlerForTest(name, binary string, constructor UUTConstrutor, exitHan
 		}
 	}
 
+	if credsArg == nil {
+		creds = &pki.MicrokubeCredentials{}
+		creds.CreateOrLoadCertificates(tmpdir, net.ParseIP("127.0.0.1"), net.ParseIP("127.1.1.1"))
+	} else {
+		creds = credsArg
+	}
+
 	wd, err := FindBinary(binary, "", "")
 	if err != nil {
-		return nil, nil, nil, nil, errors.Wrap(err, "error while searching for "+name+" binary")
+		return nil, nil, fmt.Errorf("error while searching for "+name+" binary: '%s'", err)
+	}
+
+	execEnv := handlers.ExecutionEnvironment{
+		Binary:        wd,
+		ListenAddress: net.ParseIP("127.0.0.1"),
+		OutputHandler: outputHandler,
+		ExitHandler:   exitHandler,
+		Workdir:       tmpdir,
 	}
 
 	// UUT
-	handlerList, err = constructor(ca, server, client, wd, tmpdir, outputHandler, exitHandler)
+	handlerList, err = constructor(execEnv, creds)
 	if err != nil {
-		return nil, nil, nil, nil, errors.Wrap(err, name+" handler creation failed")
+		return nil, nil, fmt.Errorf(name+" handler creation failed: '%s'", err)
 	}
 	handler := handlerList[len(handlerList)-1]
 	err = handler.Start()
 	if err != nil {
-		return nil, nil, nil, nil, errors.Wrap(err, name+" startup failed")
+		return nil, nil, fmt.Errorf(name+" startup failed: '%s'", err)
 	}
 
 	healthMessage := make(chan handlers.HealthMessage, 1)
@@ -72,8 +83,8 @@ func StartHandlerForTest(name, binary string, constructor UUTConstrutor, exitHan
 		time.Sleep(1 * time.Second)
 	}
 	if !msg.IsHealthy {
-		return nil, nil, nil, nil, errors.Wrap(msg.Error, name+" unhealthy: ")
+		return nil, nil, fmt.Errorf(name+" unhealthy: %s", msg.Error)
 	}
 
-	return handlerList, ca, client, server, nil
+	return handlerList, creds, nil
 }

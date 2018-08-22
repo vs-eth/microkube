@@ -16,13 +16,16 @@
 
 package handlers
 
-import "os/exec"
+import (
+	"net"
+	"os/exec"
+)
 
 // ExitHandler describes a function that is called when a process exits.
 type ExitHandler func(success bool, exitError *exec.ExitError)
 
-// OutputHander describes a function that is called whenever a process outputs something
-type OutputHander func(output []byte)
+// OutputHandler describes a function that is called whenever a process outputs something
+type OutputHandler func(output []byte)
 
 // HealthMessage describes health check results from services
 type HealthMessage struct {
@@ -43,4 +46,22 @@ type ServiceHandler interface {
 	// Stop stops this service and all associated goroutines (e.g. health checks). If it as already stopped,
 	// this method does nothing.
 	Stop()
+}
+
+// ExecutionEnvironment describes the environment to execute something in
+type ExecutionEnvironment struct {
+	// Binary contains the full path to the program to run
+	Binary string
+	// SudoMethod contains the binary to execute when running programs as root (sudo, pkexec, ...)
+	SudoMethod string
+	// Workdir contains a path where an application may store it's data
+	Workdir string
+	// ListenAddress is the address to bind exposed services to
+	ListenAddress net.IP
+	// ServiceAddress is the first address in the k8s service network
+	ServiceAddress net.IP
+	// OutputHandler to pass command output to
+	OutputHandler OutputHandler
+	// ExitHandler to notify on command exit
+	ExitHandler ExitHandler
 }

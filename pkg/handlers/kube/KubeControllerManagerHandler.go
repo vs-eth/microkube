@@ -52,27 +52,29 @@ type ControllerManagerHandler struct {
 	// Address to bind on
 	bindAddress string
 	// Output handler
-	out handlers.OutputHander
+	out handlers.OutputHandler
 }
 
 // NewControllerManagerHandler creates a ControllerManagerHandler from the arguments provided
-func NewControllerManagerHandler(binary, kubeconfig, listenAddress string, server, client, ca, clusterCA, svcAcctCert *pki.RSACertificate, podRange string, out handlers.OutputHander, exit handlers.ExitHandler) *ControllerManagerHandler {
+func NewControllerManagerHandler(execEnv handlers.ExecutionEnvironment, creds *pki.MicrokubeCredentials,
+	podRange string) *ControllerManagerHandler {
+
 	obj := &ControllerManagerHandler{
-		binary:            binary,
-		kubeServerCert:    server.CertPath,
-		kubeServerKey:     server.KeyPath,
+		binary:            execEnv.Binary,
+		kubeServerCert:    creds.KubeServer.CertPath,
+		kubeServerKey:     creds.KubeServer.KeyPath,
 		cmd:               nil,
-		out:               out,
-		kubeconfig:        kubeconfig,
-		bindAddress:       listenAddress,
-		kubeClusterCACert: clusterCA.CertPath,
-		kubeClusterCAKey:  clusterCA.KeyPath,
+		out:               execEnv.OutputHandler,
+		kubeconfig:        creds.Kubeconfig,
+		bindAddress:       execEnv.ListenAddress.String(),
+		kubeClusterCACert: creds.KubeClusterCA.CertPath,
+		kubeClusterCAKey:  creds.KubeClusterCA.KeyPath,
 		podRange:          podRange,
-		kubeSvcKey:        svcAcctCert.KeyPath,
+		kubeSvcKey:        creds.KubeSvcSignCert.KeyPath,
 	}
 
-	obj.BaseServiceHandler = *handlers.NewHandler(exit, obj.healthCheckFun, "https://"+listenAddress+":7000/healthz",
-		obj.stop, obj.Start, ca, client)
+	obj.BaseServiceHandler = *handlers.NewHandler(execEnv.ExitHandler, obj.healthCheckFun,
+		"https://"+execEnv.ListenAddress.String()+":7000/healthz", obj.stop, obj.Start, creds.KubeCA, creds.KubeClient)
 	return obj
 }
 
@@ -126,11 +128,14 @@ func (handler *ControllerManagerHandler) healthCheckFun(responseBin *io.ReadClos
 }
 
 // kubeControllerManagerConstructor is supposed to be only used for testing
-func kubeControllerManagerConstructor(ca, server, client *pki.RSACertificate, binary, workdir string, outputHandler handlers.OutputHander, exitHandler handlers.ExitHandler) ([]handlers.ServiceHandler, error) {
+func kubeControllerManagerConstructor(execEnv handlers.ExecutionEnvironment, creds *pki.MicrokubeCredentials) ([]handlers.ServiceHandler, error) {
 	// Start apiserver (and etcd)
-	handlerList, kubeCA, kubeClient, kubeServer, err := helpers.StartHandlerForTest("kube-apiserver", "hyperkube", kubeApiServerConstructor, exitHandler, false, 30)
+	handlerList, otherCreds, err := helpers.StartHandlerForTest("kube-apiserver", "hyperkube", kubeApiServerConstructor, execEnv.ExitHandler, false, 30, creds)
 	if err != nil {
 		return handlerList, errors.Wrap(err, "kube-apiserver startup prereq failed")
+	}
+	if otherCreds != creds {
+		return handlerList, errors.Wrap(err, "two sets of credentials")
 	}
 	// Generate kubeconfig
 	tmpdir, err := ioutil.TempDir("", "microkube-unittests-kubeconfig")
@@ -138,12 +143,12 @@ func kubeControllerManagerConstructor(ca, server, client *pki.RSACertificate, bi
 		errors.Wrap(err, "tempdir creation failed")
 	}
 	kubeconfig := path.Join(tmpdir, "kubeconfig")
-	err = CreateClientKubeconfig(ca, client, kubeconfig, "127.0.0.1")
+	err = CreateClientKubeconfig(creds, kubeconfig, "127.0.0.1")
 	if err != nil {
 		return handlerList, errors.Wrap(err, "kubeconfig creation failed")
 	}
 
-	handlerList = append(handlerList, NewControllerManagerHandler(binary, kubeconfig, "127.0.0.1", kubeServer, kubeClient, kubeCA, ca, server, "127.10.11.0/24", outputHandler, exitHandler))
+	handlerList = append(handlerList, NewControllerManagerHandler(execEnv, creds, "127.10.11.0/24"))
 
 	return handlerList, nil
 }

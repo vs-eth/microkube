@@ -93,24 +93,20 @@ func (k *KubeClient) findNode() {
 	k.node = k.nodeRef.Name
 }
 
-// setNodeUnschedulable sets a node (un)schedulable. The 'firstPass' parameter is required to be set to true by users
-// as it is used internally for recursion
-func (k *KubeClient) setNodeUnschedulable(unschedulable, firstPass bool) {
-	// If we add the taint, try adding the attribute first ;)
+// setNodeUnschedulable sets a node (un)schedulable.
+func (k *KubeClient) setNodeUnschedulable(unschedulable bool) {
 	patch := kubeMergePatch{}
-	patch["$replace/spec/unschedulable"] = unschedulable
+	specMap := make(map[string]interface{})
+	specMap["unschedulable"] = unschedulable
+	patch["spec"] = specMap
 	payloadBin, _ := json.Marshal(patch)
-	_, err := k.client.CoreV1().Nodes().Patch(k.nodeRef.ObjectMeta.Name, types.JSONPatchType, payloadBin)
+	_, err := k.client.CoreV1().Nodes().Patch(k.nodeRef.ObjectMeta.Name, types.StrategicMergePatchType, payloadBin)
 	if err != nil {
-		if firstPass && unschedulable {
-			k.setNodeUnschedulable(unschedulable, false)
-		} else {
-			log.WithFields(log.Fields{
-				"app":       "microkube",
-				"component": "kube-interface",
-				"node":      k.nodeRef.ObjectMeta.Name,
-			}).WithError(err).Warn("Couldn't (un)cordon node!")
-		}
+		log.WithFields(log.Fields{
+			"app":       "microkube",
+			"component": "kube-interface",
+			"node":      k.nodeRef.ObjectMeta.Name,
+		}).WithError(err).Warn("Couldn't (un)cordon node!")
 	}
 }
 
@@ -127,7 +123,7 @@ func (k *KubeClient) DrainNode(ctx context.Context) error {
 		return errors.New("No node found while draining node?")
 	}
 	// Step 1: Disable scheduling on the node
-	k.setNodeUnschedulable(true, true)
+	k.setNodeUnschedulable(true)
 	// Step 2: Try to remove all pods. This needs to be done pod-by-pod
 	pods, err := k.client.CoreV1().Pods(av1.NamespaceAll).List(v1.ListOptions{})
 	if err != nil {
@@ -250,7 +246,7 @@ func (k *KubeClient) WaitForNode(ctx context.Context) error {
 			}).Info("Node now ready!")
 
 			if k.nodeRef.Spec.Unschedulable {
-				k.setNodeUnschedulable(false, true)
+				k.setNodeUnschedulable(false)
 			}
 			return nil
 		}

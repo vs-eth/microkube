@@ -27,9 +27,6 @@ import (
 	"time"
 )
 
-type mockClient struct {
-}
-
 func mockClientWithNode(name string, unschedulable, haveNode bool) *fake.Clientset {
 	var mockObjs []runtime.Object
 	if haveNode {
@@ -113,6 +110,13 @@ func TestKubeClientWait(t *testing.T) {
 	err = uut.WaitForNode(ctx)
 	if err != nil {
 		t.Fatalf("Unexpected error: '%s'", err)
+	}
+
+	uut.node = ""
+	uut.nodeRef = nil
+	uut.findNode()
+	if uut.nodeRef == nil || uut.nodeRef.Spec.Unschedulable {
+		t.Fatal("Node in unexpected state")
 	}
 }
 

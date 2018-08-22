@@ -16,10 +16,14 @@
 
 package cmd
 
-import "testing"
+import (
+	"github.com/sirupsen/logrus"
+	"testing"
+)
 
 // TestStandardIPRanges tests whether parsing the default IP ranges works
 func TestStandardIPRanges(t *testing.T) {
+	logrus.SetLevel(logrus.FatalLevel)
 	uut := Microkubed{}
 	err := uut.calculateIPRanges("10.233.42.1/24", "10.233.43.1/24")
 	if err != nil {
@@ -42,6 +46,7 @@ func TestStandardIPRanges(t *testing.T) {
 
 // TestDiscontinousIPRanges tests whether parsing two discontinous IP ranges works and results in a huge clusternet
 func TestDiscontinousIPRanges(t *testing.T) {
+	logrus.SetLevel(logrus.FatalLevel)
 	uut := Microkubed{}
 	err := uut.calculateIPRanges("192.168.1.1/24", "192.168.15.1/24")
 	if err != nil {
@@ -64,6 +69,7 @@ func TestDiscontinousIPRanges(t *testing.T) {
 
 // TestIPParseError tests whether parsing invalid IP ranges returns the correct error codes
 func TestIPParseError(t *testing.T) {
+	logrus.SetLevel(logrus.FatalLevel)
 	uut := Microkubed{}
 	err := uut.calculateIPRanges("192.168.1.1/33", "foobar")
 	if err == nil {
@@ -80,5 +86,4 @@ func TestIPParseError(t *testing.T) {
 	if err.Error() != "invalid CIDR address: foobar" {
 		t.Fatalf("Unexpected error: %s", err)
 	}
-
 }

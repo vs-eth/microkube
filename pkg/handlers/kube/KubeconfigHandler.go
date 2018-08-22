@@ -48,20 +48,20 @@ func Base64EncodedPem(src string) (string, error) {
 
 // CreateClientKubeconfig creates a certificate-based kubeconfig with an apiserver at "https://<host>:7443" and stores
 // it in 'path'
-func CreateClientKubeconfig(ca, cert *pki.RSACertificate, path, host string) error {
+func CreateClientKubeconfig(creds *pki.MicrokubeCredentials, path, host string) error {
 	data := clientTemplateData{
 		Address: host,
 	}
 	var err error
-	data.Ca, err = Base64EncodedPem(ca.CertPath)
+	data.Ca, err = Base64EncodedPem(creds.KubeCA.CertPath)
 	if err != nil {
 		return errors.Wrap(err, "ca encode failed")
 	}
-	data.Clientcert, err = Base64EncodedPem(cert.CertPath)
+	data.Clientcert, err = Base64EncodedPem(creds.KubeClient.CertPath)
 	if err != nil {
 		return errors.Wrap(err, "client cert encode failed")
 	}
-	data.Clientkey, err = Base64EncodedPem(cert.KeyPath)
+	data.Clientkey, err = Base64EncodedPem(creds.KubeClient.KeyPath)
 	if err != nil {
 		return errors.Wrap(err, "client key encode failed")
 	}
@@ -90,5 +90,6 @@ contexts:
 		return errors.Wrap(err, "file creation failed")
 	}
 	defer file.Close()
+	creds.Kubeconfig = path
 	return tmpl.Execute(file, data)
 }

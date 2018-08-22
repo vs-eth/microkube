@@ -32,12 +32,12 @@ type kubeletConfigData struct {
 }
 
 // CreateKubeletConfig creates a kubelet config from the arguments provided and stores it in 'path'
-func CreateKubeletConfig(path string, server, ca *pki.RSACertificate, staticPodPath string) error {
+func CreateKubeletConfig(path string, creds *pki.MicrokubeCredentials, staticPodPath string) error {
 	data := kubeletConfigData{
-		CAFile:        ca.CertPath,
+		CAFile:        creds.KubeCA.CertPath,
 		StaticPodPath: staticPodPath,
-		CertFile:      server.CertPath,
-		KeyFile:       server.KeyPath,
+		CertFile:      creds.KubeServer.CertPath,
+		KeyFile:       creds.KubeServer.KeyPath,
 	}
 	tmplStr := `kind: KubeletConfiguration
 apiVersion: kubelet.config.k8s.io/v1beta1
