@@ -64,17 +64,13 @@ func (lp *BaseLogParser) HandleData(data []byte) error {
 
 	consumedData := false
 	if strings.Contains(lp.buf.String(), "\n") {
-		line, err := lp.buf.ReadString('\n')
-		if err == nil {
-			consumedData = true
-			err := lp.lineHandler(line)
-			if err != nil {
-				lp.mutex.Unlock()
-				return errors.Wrap(err, "Couldn't decode buffer")
-			}
-		} else {
+		// Read string cannot return an error since we just checked for delim and hold a lock on the buffer
+		line, _ := lp.buf.ReadString('\n')
+		consumedData = true
+		err := lp.lineHandler(line)
+		if err != nil {
 			lp.mutex.Unlock()
-			return errors.New("Buffer contained '\\n' but no line could be read?")
+			return errors.Wrap(err, "Couldn't decode buffer")
 		}
 	}
 
