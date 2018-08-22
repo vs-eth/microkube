@@ -4,7 +4,7 @@ notifications:
   email: false
 
 env:
-  secure: "Tm2IvfDQByVGIezvIjpwtPQ+I+y7rJhjcgKicytsj+3wGrTDXo2Le6zF+7CdE8rby2UKht8WbNHrkNEEvntv0ZLsUi/B5WZGMj/e240PPUectJq5ztlOp6JENOFIA8XhZfRv1j0H1biqJixowBY5azLPpdpKYicRNQ6vDn5G/5PSIAazm+vaNq8urGNZCCw45jXqW4tC6pVqJ1BuNg8ydJVT/kRLHY5nIEoylaeGY/mbomXknkkmR3sPVdMFCKxUBesg52/uyKSmP6huHafn1uM7dpxKvNKeeb4zp9if6wEXaZyRZhlLix81Prkxcf8zNwwW5do75KOPzRHSorlNUdAFsE1+2hbnlVSaX2fH3BW/mh5ODEIU/duVyUv18E1jkuOFkWEQwroa5HfmiDrG9SqHhs6VMwTim/xoKqzgLPf8UMm5QGhkTDnu3mmS/WH9QroLoFGEBbTq+MbknBOpis9LO8eMtpAcK2uaNhLq5lXIyKD7YdSW98oUmUD5hhgWvidH+y2iphofs9UwOvJ7IEoAEHNPTV1RtrgenJEsHIzlmmx5RMpv64HJ+RDKQ3ahiyavpWkhWc+qf8KP7YdXCwBqCWI3X5xMQNcXzRbxXFQdxewhmbzsk6clRb+W7ssflaFXQjJd+S9TBNkfMAheVnu7jN4dNGdH9XINAoJR/8s="
+  secure: "hU17t3tJF6QW2Ln1wzwV5QqAXIe62OH5AwFyY0c9/Jl9exUrwlmlYJ0cEpbnj7Hfk+BdSkepSvQYpgeqJ8NIjE+j5CoxtmVhLskVCByGLe/ICd6ZhWQdhIAknkCpPovSvKEjVxRnNvp/7vQXXWLKWx9c7ujk6TuyHAq8Db+45gqcudnhv+9wur17zgBT8lp+qwGlKuMaAmlpJ2cM/B4+32NhXSU8PFcj1+e1jiOVAIx81Yg9jp2XkL3K89gJATkg4th58f3HsdMUp+qK1IvcG5mm4cFIDWPNrkLDkJDK0CftLtU0cOlAQluhIjmKnHNkXhjj7BlS9qGpABiAwkPUYTopLYkwMfISNWUB1kL614LSOVH4fM12B96n6eW9rjRww9jQU2CZI9BH7t7Ox+AMveppZme1JQofTblR8zsEcnieVdGzMfqFhbcwNobkkNx+vMKivyJrXWIOrJBPl2rAE9WiuzMauZHSlC8/J+dBYxHFGXD/x/zi4z2zJB8Xak4FcHQAxWuagZBtqD/ux1S3a3nxRu99namsFHC+1eE/6CA2ZRUSM8aGFunBDjbbPg8/u9vgKlJ46fEfdMeI6Gl8uCTsHqDn+DQsZqOQSKF1JhaRUVSFU2qSanDQVd4hz9IsCo6IYeuvLa4BTLmv+rf4r0NWtf/XI4qSm66qKR/+AtE="
 
 go:
 - "1.10.x"
@@ -36,6 +36,7 @@ before_install:
 - cd third_party && tar -xvf ../.deps/cni-plugins-amd64-v0.7.1.tgz && rm ../.deps/cni-plugins-amd64-v0.7.1.tgz && cd ..
 - go get golang.org/x/tools/cmd/cover
 - go get github.com/mattn/goveralls
+- apt update && apt install -y util-linux
 
 script:
 - go test -race -coverprofile=coverage.txt -covermode=atomic -run 'Test[^I][^n]' -v ./...
