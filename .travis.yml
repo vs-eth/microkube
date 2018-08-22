@@ -3,30 +3,47 @@ language: go
 notifications:
   email: false
 
+env:
+  secure: "Tm2IvfDQByVGIezvIjpwtPQ+I+y7rJhjcgKicytsj+3wGrTDXo2Le6zF+7CdE8rby2UKht8WbNHrkNEEvntv0ZLsUi/B5WZGMj/e240PPUectJq5ztlOp6JENOFIA8XhZfRv1j0H1biqJixowBY5azLPpdpKYicRNQ6vDn5G/5PSIAazm+vaNq8urGNZCCw45jXqW4tC6pVqJ1BuNg8ydJVT/kRLHY5nIEoylaeGY/mbomXknkkmR3sPVdMFCKxUBesg52/uyKSmP6huHafn1uM7dpxKvNKeeb4zp9if6wEXaZyRZhlLix81Prkxcf8zNwwW5do75KOPzRHSorlNUdAFsE1+2hbnlVSaX2fH3BW/mh5ODEIU/duVyUv18E1jkuOFkWEQwroa5HfmiDrG9SqHhs6VMwTim/xoKqzgLPf8UMm5QGhkTDnu3mmS/WH9QroLoFGEBbTq+MbknBOpis9LO8eMtpAcK2uaNhLq5lXIyKD7YdSW98oUmUD5hhgWvidH+y2iphofs9UwOvJ7IEoAEHNPTV1RtrgenJEsHIzlmmx5RMpv64HJ+RDKQ3ahiyavpWkhWc+qf8KP7YdXCwBqCWI3X5xMQNcXzRbxXFQdxewhmbzsk6clRb+W7ssflaFXQjJd+S9TBNkfMAheVnu7jN4dNGdH9XINAoJR/8s="
+
 go:
 - "1.10.x"
 
+cache:
+  directories:
+  - /home/travis/.deps
+  - /home/travis/.glide
+  - /home/travis/vendor
+
 before_install:
 # We need glide, etcd and hyperkube
-- wget https://github.com/Masterminds/glide/releases/download/v0.13.1/glide-v0.13.1-linux-amd64.zip
-- wget https://github.com/coreos/etcd/releases/download/v3.3.9/etcd-v3.3.9-linux-amd64.tar.gz
-- wget https://dl.k8s.io/v1.11.2/kubernetes-server-linux-amd64.tar.gz
+- cd .deps
+- wget -N https://github.com/Masterminds/glide/releases/download/v0.13.1/glide-v0.13.1-linux-amd64.zip
+- wget -N https://github.com/coreos/etcd/releases/download/v3.3.9/etcd-v3.3.9-linux-amd64.tar.gz
+- wget -N https://dl.k8s.io/v1.11.2/kubernetes-server-linux-amd64.tar.gz
+- wget -N https://github.com/containernetworking/plugins/releases/download/v0.7.1/cni-plugins-amd64-v0.7.1.tgz
 - sha256sum -c .ci.sha256sum
 - unzip glide-v0.13.1-linux-amd64.zip
 - mv linux-amd64/glide $GOPATH/bin/ && chmod +x $GOPATH/bin/glide
+- cd ..
 - mkdir third_party
-- tar -xvf kubernetes-server-linux-amd64.tar.gz
-- tar -xvf etcd-v3.3.9-linux-amd64.tar.gz
+- tar -xvf .deps/kubernetes-server-linux-amd64.tar.gz
+- tar -xvf .deps/etcd-v3.3.9-linux-amd64.tar.gz
 - mv kubernetes/server/bin/hyperkube third_party
 - mv etcd-v3.3.9-linux-amd64/etcd third_party
-- rm -Rf kubernetes kubernetes-server-linux-amd64.tar.gz
-- rm -Rf etcd-v3.3.9-linux-amd64 etcd-v3.3.9-linux-amd64.tar.gz
+- rm -Rf kubernetes
+- rm -Rf etcd-v3.3.9-linux-amd64
+- cd third_party && tar -xvf ../.deps/cni-plugins-amd64-v0.7.1.tgz && rm ../.deps/cni-plugins-amd64-v0.7.1.tgz && cd ..
+- go get golang.org/x/tools/cmd/cover
+- go get github.com/mattn/goveralls
 
 script:
-- go test -race -coverprofile=coverage.txt -covermode=atomic -v ./...
+- go test -race -coverprofile=coverage.txt -covermode=atomic -run 'Test[^I][^n]' -v ./...
+- go test -race -coverprofile=coverage.txt -covermode=atomic -run 'TestIn' -v ./...
 
 install:
 - glide i
 
 after_success:
+- goveralls -coverprofile=coverage.txt -service=travis-ci -repotoken $COVERALLS_TOKEN
 - bash <(curl -s https://codecov.io/bash)

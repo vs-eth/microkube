@@ -29,6 +29,7 @@ import (
 	"github.com/uubk/microkube/pkg/handlers/kube"
 	"github.com/uubk/microkube/pkg/helpers"
 	"github.com/uubk/microkube/pkg/pki"
+	"io"
 	"net"
 	"os"
 	"os/exec"
@@ -140,18 +141,35 @@ func (m *Microkubed) createDirectories() {
 		"loopback",
 	}
 	for _, plugin := range cniPlugins {
-		_, err := os.Stat(path.Join(m.extraBinDir, plugin))
+		pluginPath, err := helpers.FindBinary(plugin, m.baseDir, m.extraBinDir)
 		if err == nil {
 			_, err := os.Stat(path.Join(m.baseDir, "kube", "kubelet", "cni", plugin))
 			if err != nil {
-				err = os.Link(path.Join(m.extraBinDir, plugin), path.Join(m.baseDir, "kube", "kubelet", "cni", plugin))
+				destPath := path.Join(m.baseDir, "kube", "kubelet", "cni", plugin)
+				err = os.Link(pluginPath, destPath)
 				if err != nil {
-					log.WithFields(log.Fields{
+					// Try to copy :/
+					lctx := log.WithFields(log.Fields{
 						"src":       path.Join(m.extraBinDir, plugin),
 						"dest":      path.Join(m.baseDir, "kube", "kubelet", "cni", plugin),
 						"app":       "microkube",
 						"component": "prep",
-					}).WithError(err).Fatal("Couldn't link CNI plugin")
+					})
+					lctx.WithError(err).Info("Couldn't link CNI plugin, trying to copy")
+					in, err := os.Open(pluginPath)
+					if err != nil {
+						lctx.WithError(err).Fatal("Couldn't open source file")
+					}
+					defer in.Close()
+					out, err := os.OpenFile(destPath, os.O_RDWR|os.O_CREATE, 0755)
+					if err != nil {
+						lctx.WithError(err).Fatal("Couldn't open destination file")
+					}
+					defer out.Close()
+					_, err = io.Copy(in, out)
+					if err != nil {
+						lctx.WithError(err).Fatal("Couldn't copy file")
+					}
 				}
 			}
 		}
@@ -431,6 +449,23 @@ func (m *Microkubed) Run() {
 		}
 	})
 
+	m.start()
+
+	exitChan := m.waitUntilNodeReady()
+
+	m.enableHealthChecks()
+
+	// Wait until exit
+	<-exitChan
+	log.WithField("app", "microkube").Info("Exit signal received, stopping now.")
+	for _, h := range m.serviceHandlers {
+		h.Stop()
+	}
+	return
+}
+
+// start starts all cluster services
+func (m *Microkubed) start() {
 	m.createDirectories()
 	m.cred = &pki.MicrokubeCredentials{}
 	err := m.cred.CreateOrLoadCertificates(m.baseDir, m.bindAddr, m.serviceRangeIP)
@@ -446,18 +481,6 @@ func (m *Microkubed) Run() {
 	m.startKubeScheduler()
 	m.startKubelet()
 	m.startKubeProxy()
-
-	exitChan := m.waitUntilNodeReady()
-
-	m.enableHealthChecks()
-
-	// Wait until exit
-	<-exitChan
-	log.WithField("app", "microkube").Info("Exit signal received, stopping now.")
-	for _, h := range m.serviceHandlers {
-		h.Stop()
-	}
-	return
 }
 
 // Starts a service. This function takes care of setting up the infrastructure required by a service constructor
