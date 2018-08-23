@@ -28,6 +28,7 @@ import (
 	"github.com/uubk/microkube/pkg/handlers/etcd"
 	"github.com/uubk/microkube/pkg/handlers/kube"
 	"github.com/uubk/microkube/pkg/helpers"
+	kube2 "github.com/uubk/microkube/pkg/kube"
 	"github.com/uubk/microkube/pkg/pki"
 	"io"
 	"net"
@@ -401,7 +402,7 @@ func (m *Microkubed) enableHealthChecks() {
 
 // Wait until node is ready
 func (m *Microkubed) waitUntilNodeReady() chan bool {
-	kCl, err := cmd.NewKubeClient(path.Join(m.baseDir, "kube/", "kubeconfig"))
+	kCl, err := kube2.NewKubeClient(path.Join(m.baseDir, "kube/", "kubeconfig"))
 	if err != nil {
 		log.WithError(err).Fatalf("Couldn't init kube client")
 	}
