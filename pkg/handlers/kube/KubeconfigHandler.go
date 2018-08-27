@@ -86,7 +86,9 @@ users:
 contexts:
 - context:
     cluster: microkube
-    user: admin`
+    user: admin
+  name: default-ctx
+current-context: default-ctx`
 	tmpl, err := template.New("Client").Parse(tmplStr)
 	if err != nil {
 		return errors.Wrap(err, "template init failed")

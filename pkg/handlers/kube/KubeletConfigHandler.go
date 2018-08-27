@@ -57,6 +57,7 @@ healthzPort: {{ .KubeletHealthPort }}
 kubeletCgroups: "/systemd/system.slice"
 tlsCertFile: {{ .CertFile }}
 tlsPrivateKeyFile: {{ .KeyFile }}
+failSwapOn: False
 `
 	tmpl, err := template.New("Kubelet").Parse(tmplStr)
 	if err != nil {

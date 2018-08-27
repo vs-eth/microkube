@@ -1,0 +1,38 @@
+[[override]]
+  name = "k8s.io/api"
+  version = "kubernetes-1.11.0"
+
+[[override]]
+  name = "k8s.io/apimachinery"
+  version = "kubernetes-1.11.0"
+
+[[constraint]]
+  name = "k8s.io/client-go"
+  version = "kubernetes-1.11.0"
+
+[[constraint]]
+  name = "k8s.io/kubernetes"
+  version = "v1.11.2"
+
+[[override]]
+  name = "github.com/docker/distribution"
+  revision = "3354cf98e3a55ca01d9712714f2c69531abc2347"
+
+[[override]]
+  name = "github.com/docker/docker"
+  revision = "4f3616fb1c112e206b88cb7a9922bf49067a7756"
+
+[[override]]
+  name = "github.com/spf13/pflag"
+  version = "~1.0.1"
+
+[[override]]
+  name = "github.com/russross/blackfriday"
+  version = "~1.4"
+
+[[override]]
+  name = "github.com/imdario/mergo"
+  revision = "9316a62528ac99aaecb4e47eadd6dc8aa6533d58"
+
+[prune]
+  unused-packages = true

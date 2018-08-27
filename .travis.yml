@@ -8,20 +8,19 @@ go:
 
 cache:
   directories:
-  - /home/travis/.deps
-  - /home/travis/.glide
-  - /home/travis/vendor
+  - /home/travis/gopath/src/github.com/uubk/microkube/.deps
+  - /home/travis/gopath/src/github.com/uubk/microkube/vendor
+  - /home/travis/gopath/pkg/dep
 
 before_install:
 # We need glide, etcd, cni-plugins, nsenter and hyperkube
 - cd .deps
-- wget -qN https://github.com/Masterminds/glide/releases/download/v0.13.1/glide-v0.13.1-linux-amd64.zip
+- wget -qN https://github.com/golang/dep/releases/download/v0.5.0/dep-linux-amd64
 - wget -qN https://github.com/coreos/etcd/releases/download/v3.3.9/etcd-v3.3.9-linux-amd64.tar.gz
 - wget -qN https://dl.k8s.io/v1.11.2/kubernetes-server-linux-amd64.tar.gz
 - wget -qN https://github.com/containernetworking/plugins/releases/download/v0.7.1/cni-plugins-amd64-v0.7.1.tgz
 - sha256sum -c .ci.sha256sum
-- unzip glide-v0.13.1-linux-amd64.zip
-- mv linux-amd64/glide $GOPATH/bin/ && chmod +x $GOPATH/bin/glide
+- mv dep-linux-amd64 $GOPATH/bin/dep && chmod +x $GOPATH/bin/dep
 - cd ..
 - mkdir third_party
 - tar -xf .deps/kubernetes-server-linux-amd64.tar.gz
@@ -41,7 +40,7 @@ script:
 - go test -coverprofile=cover2 -covermode=atomic -run 'Test9' -v ./...
 
 install:
-- glide i
+- dep ensure
 
 after_success:
 - cat cover1 cover2 > coverage.txt
