@@ -7,10 +7,20 @@
 package main
 
 import (
+	"flag"
+	"github.com/mitchellh/go-homedir"
+	log "github.com/sirupsen/logrus"
 	"github.com/uubk/microkube/pkg/manifests"
 )
 
 func main() {
+	kubeconfig := flag.String("kubeconfig", "~/.mukube/kube/kubeconfig", "Path to Kubeconfig")
+	flag.Parse()
+	var err error
+	*kubeconfig, err = homedir.Expand(*kubeconfig)
+	if err != nil {
+		log.WithError(err).WithField("root", *kubeconfig).Fatal("Couldn't expand kubeconfig")
+	}
 	obj := manifests.NewDNS()
-	obj.ApplyToCluster("/home/maxf/.mukube/kube/kubeconfig")
+	obj.ApplyToCluster(*kubeconfig)
 }
