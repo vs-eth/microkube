@@ -21,6 +21,8 @@ import (
 	"bytes"
 	"io"
 	"io/ioutil"
+	appsv1 "k8s.io/api/apps/v1"
+	extensionsv1beta1 "k8s.io/api/extensions/v1beta1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/runtime/serializer/json"
@@ -38,6 +40,8 @@ type ManifestCodegen struct {
 	currentOutput io.Writer
 	// List of entries for the next file
 	entries []fileEntry
+	// Does the current manifest have something with a health check
+	hasHealthCheck bool
 	// Name of the type to generate
 	name string
 	// File to put the type in
@@ -133,6 +137,36 @@ func (m *ManifestCodegen) parseDoc(doc string) error {
 		name: "kobjS" + m.name + "O" + strconv.Itoa(len(m.entries)),
 	})
 
+	// Check whether this is 'pod generating'
+	// 'Pod generating' means that when applying this to a cluster, it will result in a pod being created. This is
+	// important for future health checks
+
+	healthObj := fileEntry{
+		obj:  obj,
+		gv:   gvk.GroupVersion(),
+		name: "kobjS" + m.name + "HO",
+	}
+
+	if deployment, ok := obj.(*appsv1.Deployment); ok {
+		for _, container := range deployment.Spec.Template.Spec.Containers {
+			if container.LivenessProbe != nil {
+				// Container has health check!
+				m.entries = append(m.entries, healthObj)
+				m.hasHealthCheck = true
+			}
+		}
+	}
+
+	if deployment, ok := obj.(*extensionsv1beta1.Deployment); ok {
+		for _, container := range deployment.Spec.Template.Spec.Containers {
+			if container.LivenessProbe != nil {
+				// Container has health check!
+				m.entries = append(m.entries, healthObj)
+				m.hasHealthCheck = true
+			}
+		}
+	}
+
 	return nil
 }
 
@@ -154,6 +188,10 @@ import (
 	log "github.com/sirupsen/logrus"
 	"`)
 	bufWriter.WriteString(m.mainPkgBase + "/" + m.pkg)
+	if m.hasHealthCheck {
+		bufWriter.WriteString(`
+	"time`)
+	}
 	bufWriter.WriteString(`"
 )
 
@@ -168,7 +206,30 @@ func main() {
 	obj := `)
 	bufWriter.WriteString(m.pkg + ".New" + m.name)
 	bufWriter.WriteString(`()
-	obj.ApplyToCluster(*kubeconfig)
+	err = obj.ApplyToCluster(*kubeconfig)
+	if err != nil {
+		log.WithError(err).WithField("root", *kubeconfig).Fatal("Couldn't apply object to cluster")
+	}`)
+	if m.hasHealthCheck {
+		bufWriter.WriteString(`
+	err = obj.InitHealthCheck(*kubeconfig)
+	if err != nil {
+		log.WithError(err).WithField("root", *kubeconfig).Fatal("Couldn't enable health checks")
+	}
+	ok := false
+	for i := 0; i < 10 && !ok ; i++ {
+		ok, err = obj.IsHealthy()
+		if err != nil {
+			log.WithError(err).WithField("root", *kubeconfig).Fatal("Couldn't enable health checks")
+		}
+		if ok {
+			break;
+		}
+		time.Sleep(1*time.Second)
+	}
+	log.WithField("status", ok).Info("Health check done")`)
+	}
+	bufWriter.WriteString(`
 }
 `)
 	_, err := bufWriter.WriteTo(m.currentOutput)
@@ -188,9 +249,9 @@ func (m *ManifestCodegen) writeFile() error {
 `)
 	bufWriter.WriteString("package " + m.pkg)
 	bufWriter.WriteString("\n\n")
-	if m.mainPkgBase+"/"+m.pkg != "github.com/uubk/microkube/pkg/manifests" {
+	if m.mainPkgBase+"/"+m.pkg != "github.com/uubk/microkube/internal/manifests" {
 		bufWriter.WriteString(`import (
-	"github.com/uubk/microkube/pkg/manifests"
+	"github.com/uubk/microkube/internal/manifests"
 )
 
 `)
@@ -198,7 +259,7 @@ func (m *ManifestCodegen) writeFile() error {
 
 	serializer := json.Serializer{}
 	for _, entry := range m.entries {
-		bufWriter.Write([]byte("var " + entry.name + " = `"))
+		bufWriter.Write([]byte("const " + entry.name + " = `"))
 
 		// Encode the whole thing to JSON
 		encoder := scheme.Codecs.EncoderForVersion(&serializer, entry.gv)
@@ -223,7 +284,7 @@ func (m *ManifestCodegen) writeFile() error {
 	bufWriter.WriteString("\n")
 	bufWriter.WriteString("type " + m.name + ` struct {
 	`)
-	if m.mainPkgBase+"/"+m.pkg != "github.com/uubk/microkube/pkg/manifests" {
+	if m.mainPkgBase+"/"+m.pkg != "github.com/uubk/microkube/internal/manifests" {
 		bufWriter.WriteString("manifests.")
 	}
 	bufWriter.WriteString(`KubeManifestBase
@@ -235,7 +296,12 @@ func New` + m.name + `() (*` + m.name + `) {
 `)
 
 	for _, entry := range m.entries {
-		bufWriter.WriteString(`	obj.Register(` + entry.name + ")\n")
+		// 'HO' means health object, those have to be registered differently
+		if !strings.HasSuffix(entry.name, "HO") {
+			bufWriter.WriteString(`	obj.Register(` + entry.name + ")\n")
+		} else {
+			bufWriter.WriteString(`	obj.RegisterHO(` + entry.name + ")\n")
+		}
 	}
 
 	bufWriter.WriteString(`
