@@ -78,7 +78,7 @@ func TestParse(t *testing.T) {
 	// Check whether the correct variable definition appears in the generated code
 	for _, decl := range astRoot.Decls {
 		if genericDecl, ok := decl.(*ast.GenDecl); ok {
-			if genericDecl.Tok == token.VAR {
+			if genericDecl.Tok == token.CONST {
 				// Found a variable definition
 				if len(genericDecl.Specs) == 1 {
 					if valSpec, ok := genericDecl.Specs[0].(*ast.ValueSpec); ok {
