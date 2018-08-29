@@ -60,6 +60,7 @@ func Test9IntegrationMicrokubed(t *testing.T) {
 	obj.gracefulTerminationMode = false
 	obj.start()
 	obj.waitUntilNodeReady()
+	obj.gracefulTerminationMode = false
 	obj.enableHealthChecks()
 	// This should make all health checks execute once since they're on a ten second timer
 	time.Sleep(15 * time.Second)
