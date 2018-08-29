@@ -224,15 +224,15 @@ func main() {
 		log.WithError(err).WithField("root", *kubeconfig).Fatal("Couldn't enable health checks")
 	}
 	ok := false
-	for i := 0; i < 10 && !ok ; i++ {
+	for i := 0; i < 10 && !ok; i++ {
 		ok, err = obj.IsHealthy()
 		if err != nil {
 			log.WithError(err).WithField("root", *kubeconfig).Fatal("Couldn't enable health checks")
 		}
 		if ok {
-			break;
+			break
 		}
-		time.Sleep(1*time.Second)
+		time.Sleep(1 * time.Second)
 	}
 	log.WithField("status", ok).Info("Health check done")`)
 	}
@@ -257,7 +257,6 @@ func (m *ManifestCodegen) writeFile() error {
 	bufWriter.WriteString("package " + m.pkg)
 	bufWriter.WriteString(`
 
-
 import (
 	"bytes"
 	"text/template"
@@ -267,7 +266,7 @@ import (
 	"github.com/uubk/microkube/internal/manifests"
 `)
 	}
-	bufWriter.WriteString(")\n")
+	bufWriter.WriteString(")\n\n")
 
 	serializer := json.Serializer{}
 	for _, entry := range m.entries {
@@ -307,10 +306,10 @@ func New` + m.name + `(rtEnv `)
 		bufWriter.WriteString("manifests.")
 	}
 	bufWriter.WriteString(`KubeManifestRuntimeInfo) (*` + m.name + `, error) {
-	obj := &` + m.name + ` {}
-    var err error
-    var buf *bytes.Buffer
-    var tmpl *template.Template
+	obj := &` + m.name + `{}
+	var err error
+	var buf *bytes.Buffer
+	var tmpl *template.Template
 
 `)
 
@@ -319,11 +318,11 @@ func New` + m.name + `(rtEnv `)
 		if !strings.HasSuffix(entry.name, "HO") {
 			bufWriter.WriteString(`	tmpl, err = template.New("` + entry.name + `").Parse(` + entry.name + `)
 	if err != nil {
-        return nil, err
-    }
+		return nil, err
+	}
 	buf = bytes.NewBufferString("")
 	tmpl.Execute(buf, rtEnv)
-    obj.Register(buf.String())
+	obj.Register(buf.String())
 `)
 		} else {
 			bufWriter.WriteString(`	obj.RegisterHO(` + entry.name + ")\n")

@@ -77,8 +77,6 @@ type Microkubed struct {
 	etcdBin string
 	// Path to hyperkube binary
 	hyperkubeBin string
-	// Path to some sudo-like binary
-	sudoMethod string
 
 	// A list of running services
 	serviceList []serviceEntry
