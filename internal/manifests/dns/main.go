@@ -10,19 +10,26 @@ import (
 	"flag"
 	"github.com/mitchellh/go-homedir"
 	log "github.com/sirupsen/logrus"
+	"github.com/uubk/microkube/internal/cmd"
 	"github.com/uubk/microkube/internal/manifests"
 	"time"
 )
 
 func main() {
 	kubeconfig := flag.String("kubeconfig", "~/.mukube/kube/kubeconfig", "Path to Kubeconfig")
-	flag.Parse()
+	arg := cmd.ArgHandler{}
+	kmri := manifests.KubeManifestRuntimeInfo{
+		ExecEnv: *arg.HandleArgs(),
+	}
 	var err error
 	*kubeconfig, err = homedir.Expand(*kubeconfig)
 	if err != nil {
 		log.WithError(err).WithField("root", *kubeconfig).Fatal("Couldn't expand kubeconfig")
 	}
-	obj := manifests.NewDNS()
+	obj, err := manifests.NewDNS(kmri)
+	if err != nil {
+		log.WithError(err).WithField("root", *kubeconfig).Fatal("Couldn't init object")
+	}
 	err = obj.ApplyToCluster(*kubeconfig)
 	if err != nil {
 		log.WithError(err).WithField("root", *kubeconfig).Fatal("Couldn't apply object to cluster")

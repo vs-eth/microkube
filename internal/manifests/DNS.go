@@ -6,28 +6,72 @@
 
 package manifests
 
+import (
+	"bytes"
+	"text/template"
+)
+
 const kobjSDNSO0 = `{"kind":"ServiceAccount","apiVersion":"v1","metadata":{"name":"coredns","namespace":"kube-system","creationTimestamp":null}}`
 const kobjSDNSO1 = `{"kind":"ClusterRole","apiVersion":"rbac.authorization.k8s.io/v1beta1","metadata":{"name":"system:coredns","creationTimestamp":null,"labels":{"kubernetes.io/bootstrapping":"rbac-defaults"}},"rules":[{"verbs":["list","watch"],"apiGroups":[""],"resources":["endpoints","services","pods","namespaces"]}]}`
 const kobjSDNSO2 = `{"kind":"ClusterRoleBinding","apiVersion":"rbac.authorization.k8s.io/v1beta1","metadata":{"name":"system:coredns","creationTimestamp":null,"labels":{"kubernetes.io/bootstrapping":"rbac-defaults"},"annotations":{"rbac.authorization.kubernetes.io/autoupdate":"true"}},"subjects":[{"kind":"ServiceAccount","name":"coredns","namespace":"kube-system"}],"roleRef":{"apiGroup":"rbac.authorization.k8s.io","kind":"ClusterRole","name":"system:coredns"}}`
 const kobjSDNSO3 = `{"kind":"ConfigMap","apiVersion":"v1","metadata":{"name":"coredns","namespace":"kube-system","creationTimestamp":null},"data":{"Corefile":".:53 {\n    errors\n    health\n    kubernetes cluster.local in-addr.arpa ip6.arpa {\n      pods insecure\n      upstream\n      fallthrough in-addr.arpa ip6.arpa\n    }\n    prometheus :9153\n    proxy . /etc/resolv.conf\n    cache 30\n    reload\n    loadbalance\n}\n"}}`
-const kobjSDNSO4 = `{"kind":"Deployment","apiVersion":"extensions/v1beta1","metadata":{"name":"coredns","namespace":"kube-system","creationTimestamp":null,"labels":{"k8s-app":"kube-dns","kubernetes.io/name":"CoreDNS"}},"spec":{"replicas":2,"selector":{"matchLabels":{"k8s-app":"kube-dns"}},"template":{"metadata":{"creationTimestamp":null,"labels":{"k8s-app":"kube-dns"}},"spec":{"volumes":[{"name":"config-volume","configMap":{"name":"coredns","items":[{"key":"Corefile","path":"Corefile"}]}}],"containers":[{"name":"coredns","image":"coredns/coredns:1.2.0","args":["-conf","/etc/coredns/Corefile"],"ports":[{"name":"dns","containerPort":53,"protocol":"UDP"},{"name":"dns-tcp","containerPort":53,"protocol":"TCP"},{"name":"metrics","containerPort":9153,"protocol":"TCP"}],"resources":{"limits":{"memory":"170Mi"},"requests":{"cpu":"100m","memory":"70Mi"}},"volumeMounts":[{"name":"config-volume","readOnly":true,"mountPath":"/etc/coredns"}],"livenessProbe":{"httpGet":{"path":"/health","port":8080,"scheme":"HTTP"},"initialDelaySeconds":60,"timeoutSeconds":5,"successThreshold":1,"failureThreshold":5},"imagePullPolicy":"IfNotPresent","securityContext":{"capabilities":{"add":["NET_BIND_SERVICE"],"drop":["all"]},"readOnlyRootFilesystem":true,"allowPrivilegeEscalation":false}}],"dnsPolicy":"Default","serviceAccountName":"coredns","tolerations":[{"key":"node-role.kubernetes.io/master","effect":"NoSchedule"},{"key":"CriticalAddonsOnly","operator":"Exists"}]}},"strategy":{"type":"RollingUpdate","rollingUpdate":{"maxUnavailable":1}}},"status":{}}`
-const kobjSDNSHO = `{"kind":"Deployment","apiVersion":"extensions/v1beta1","metadata":{"name":"coredns","namespace":"kube-system","creationTimestamp":null,"labels":{"k8s-app":"kube-dns","kubernetes.io/name":"CoreDNS"}},"spec":{"replicas":2,"selector":{"matchLabels":{"k8s-app":"kube-dns"}},"template":{"metadata":{"creationTimestamp":null,"labels":{"k8s-app":"kube-dns"}},"spec":{"volumes":[{"name":"config-volume","configMap":{"name":"coredns","items":[{"key":"Corefile","path":"Corefile"}]}}],"containers":[{"name":"coredns","image":"coredns/coredns:1.2.0","args":["-conf","/etc/coredns/Corefile"],"ports":[{"name":"dns","containerPort":53,"protocol":"UDP"},{"name":"dns-tcp","containerPort":53,"protocol":"TCP"},{"name":"metrics","containerPort":9153,"protocol":"TCP"}],"resources":{"limits":{"memory":"170Mi"},"requests":{"cpu":"100m","memory":"70Mi"}},"volumeMounts":[{"name":"config-volume","readOnly":true,"mountPath":"/etc/coredns"}],"livenessProbe":{"httpGet":{"path":"/health","port":8080,"scheme":"HTTP"},"initialDelaySeconds":60,"timeoutSeconds":5,"successThreshold":1,"failureThreshold":5},"imagePullPolicy":"IfNotPresent","securityContext":{"capabilities":{"add":["NET_BIND_SERVICE"],"drop":["all"]},"readOnlyRootFilesystem":true,"allowPrivilegeEscalation":false}}],"dnsPolicy":"Default","serviceAccountName":"coredns","tolerations":[{"key":"node-role.kubernetes.io/master","effect":"NoSchedule"},{"key":"CriticalAddonsOnly","operator":"Exists"}]}},"strategy":{"type":"RollingUpdate","rollingUpdate":{"maxUnavailable":1}}},"status":{}}`
-const kobjSDNSO6 = `{"kind":"Service","apiVersion":"v1","metadata":{"name":"kube-dns","namespace":"kube-system","creationTimestamp":null,"labels":{"k8s-app":"kube-dns","kubernetes.io/cluster-service":"true","kubernetes.io/name":"CoreDNS"},"annotations":{"prometheus.io/port":"9153","prometheus.io/scrape":"true"}},"spec":{"ports":[{"name":"dns","protocol":"UDP","port":53,"targetPort":0},{"name":"dns-tcp","protocol":"TCP","port":53,"targetPort":0}],"selector":{"k8s-app":"kube-dns"},"clusterIP":"10.233.43.2"},"status":{"loadBalancer":{}}}`
+const kobjSDNSO4 = `{"kind":"Deployment","apiVersion":"extensions/v1beta1","metadata":{"name":"coredns","namespace":"kube-system","creationTimestamp":null,"labels":{"k8s-app":"kube-dns","kubernetes.io/name":"CoreDNS"}},"spec":{"replicas":1,"selector":{"matchLabels":{"k8s-app":"kube-dns"}},"template":{"metadata":{"creationTimestamp":null,"labels":{"k8s-app":"kube-dns"}},"spec":{"volumes":[{"name":"config-volume","configMap":{"name":"coredns","items":[{"key":"Corefile","path":"Corefile"}]}}],"containers":[{"name":"coredns","image":"coredns/coredns:1.2.0","args":["-conf","/etc/coredns/Corefile"],"ports":[{"name":"dns","containerPort":53,"protocol":"UDP"},{"name":"dns-tcp","containerPort":53,"protocol":"TCP"},{"name":"metrics","containerPort":9153,"protocol":"TCP"}],"resources":{"limits":{"memory":"170Mi"},"requests":{"cpu":"100m","memory":"70Mi"}},"volumeMounts":[{"name":"config-volume","readOnly":true,"mountPath":"/etc/coredns"}],"livenessProbe":{"httpGet":{"path":"/health","port":8080,"scheme":"HTTP"},"initialDelaySeconds":60,"timeoutSeconds":5,"successThreshold":1,"failureThreshold":5},"imagePullPolicy":"IfNotPresent","securityContext":{"capabilities":{"add":["NET_BIND_SERVICE"],"drop":["all"]},"readOnlyRootFilesystem":true,"allowPrivilegeEscalation":false}}],"dnsPolicy":"Default","serviceAccountName":"coredns","tolerations":[{"key":"node-role.kubernetes.io/master","effect":"NoSchedule"},{"key":"CriticalAddonsOnly","operator":"Exists"}]}},"strategy":{"type":"RollingUpdate","rollingUpdate":{"maxUnavailable":0}}},"status":{}}`
+const kobjSDNSHO = `{"kind":"Deployment","apiVersion":"extensions/v1beta1","metadata":{"name":"coredns","namespace":"kube-system","creationTimestamp":null,"labels":{"k8s-app":"kube-dns","kubernetes.io/name":"CoreDNS"}},"spec":{"replicas":1,"selector":{"matchLabels":{"k8s-app":"kube-dns"}},"template":{"metadata":{"creationTimestamp":null,"labels":{"k8s-app":"kube-dns"}},"spec":{"volumes":[{"name":"config-volume","configMap":{"name":"coredns","items":[{"key":"Corefile","path":"Corefile"}]}}],"containers":[{"name":"coredns","image":"coredns/coredns:1.2.0","args":["-conf","/etc/coredns/Corefile"],"ports":[{"name":"dns","containerPort":53,"protocol":"UDP"},{"name":"dns-tcp","containerPort":53,"protocol":"TCP"},{"name":"metrics","containerPort":9153,"protocol":"TCP"}],"resources":{"limits":{"memory":"170Mi"},"requests":{"cpu":"100m","memory":"70Mi"}},"volumeMounts":[{"name":"config-volume","readOnly":true,"mountPath":"/etc/coredns"}],"livenessProbe":{"httpGet":{"path":"/health","port":8080,"scheme":"HTTP"},"initialDelaySeconds":60,"timeoutSeconds":5,"successThreshold":1,"failureThreshold":5},"imagePullPolicy":"IfNotPresent","securityContext":{"capabilities":{"add":["NET_BIND_SERVICE"],"drop":["all"]},"readOnlyRootFilesystem":true,"allowPrivilegeEscalation":false}}],"dnsPolicy":"Default","serviceAccountName":"coredns","tolerations":[{"key":"node-role.kubernetes.io/master","effect":"NoSchedule"},{"key":"CriticalAddonsOnly","operator":"Exists"}]}},"strategy":{"type":"RollingUpdate","rollingUpdate":{"maxUnavailable":0}}},"status":{}}`
+const kobjSDNSO6 = `{"kind":"Service","apiVersion":"v1","metadata":{"name":"kube-dns","namespace":"kube-system","creationTimestamp":null,"labels":{"k8s-app":"kube-dns","kubernetes.io/cluster-service":"true","kubernetes.io/name":"CoreDNS"},"annotations":{"prometheus.io/port":"9153","prometheus.io/scrape":"true"}},"spec":{"ports":[{"name":"dns","protocol":"UDP","port":53,"targetPort":0},{"name":"dns-tcp","protocol":"TCP","port":53,"targetPort":0}],"selector":{"k8s-app":"kube-dns"},"clusterIP":"{{ .ExecEnv.DNSAddress }}"},"status":{"loadBalancer":{}}}`
 
 type DNS struct {
 	KubeManifestBase
 }
 
-func NewDNS() *DNS {
+func NewDNS(rtEnv KubeManifestRuntimeInfo) (*DNS, error) {
 	obj := &DNS{}
+	var err error
+	var buf *bytes.Buffer
+	var tmpl *template.Template
 
-	obj.Register(kobjSDNSO0)
-	obj.Register(kobjSDNSO1)
-	obj.Register(kobjSDNSO2)
-	obj.Register(kobjSDNSO3)
-	obj.Register(kobjSDNSO4)
+	tmpl, err = template.New("kobjSDNSO0").Parse(kobjSDNSO0)
+	if err != nil {
+		return nil, err
+	}
+	buf = bytes.NewBufferString("")
+	tmpl.Execute(buf, rtEnv)
+	obj.Register(buf.String())
+	tmpl, err = template.New("kobjSDNSO1").Parse(kobjSDNSO1)
+	if err != nil {
+		return nil, err
+	}
+	buf = bytes.NewBufferString("")
+	tmpl.Execute(buf, rtEnv)
+	obj.Register(buf.String())
+	tmpl, err = template.New("kobjSDNSO2").Parse(kobjSDNSO2)
+	if err != nil {
+		return nil, err
+	}
+	buf = bytes.NewBufferString("")
+	tmpl.Execute(buf, rtEnv)
+	obj.Register(buf.String())
+	tmpl, err = template.New("kobjSDNSO3").Parse(kobjSDNSO3)
+	if err != nil {
+		return nil, err
+	}
+	buf = bytes.NewBufferString("")
+	tmpl.Execute(buf, rtEnv)
+	obj.Register(buf.String())
+	tmpl, err = template.New("kobjSDNSO4").Parse(kobjSDNSO4)
+	if err != nil {
+		return nil, err
+	}
+	buf = bytes.NewBufferString("")
+	tmpl.Execute(buf, rtEnv)
+	obj.Register(buf.String())
 	obj.RegisterHO(kobjSDNSHO)
-	obj.Register(kobjSDNSO6)
+	tmpl, err = template.New("kobjSDNSO6").Parse(kobjSDNSO6)
+	if err != nil {
+		return nil, err
+	}
+	buf = bytes.NewBufferString("")
+	tmpl.Execute(buf, rtEnv)
+	obj.Register(buf.String())
 
-	return obj
+	return obj, nil
 }

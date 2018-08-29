@@ -19,11 +19,10 @@ package cmd
 
 import (
 	"context"
-	"flag"
-	"github.com/mitchellh/go-homedir"
 	log "github.com/sirupsen/logrus"
 	"github.com/uubk/microkube/internal/cmd"
 	log2 "github.com/uubk/microkube/internal/log"
+	"github.com/uubk/microkube/internal/manifests"
 	"github.com/uubk/microkube/pkg/handlers"
 	"github.com/uubk/microkube/pkg/handlers/etcd"
 	"github.com/uubk/microkube/pkg/handlers/kube"
@@ -66,12 +65,8 @@ type Microkubed struct {
 	podRangeNet *net.IPNet
 	// CIDR of service IPs (commandline argument)
 	serviceRangeNet *net.IPNet
-	// First IP in service network, reserved for Kubernetes API Server service
-	serviceRangeIP net.IP
 	// CIDR of pod and service network combined
 	clusterIPRange *net.IPNet
-	// Some host-local address that the services will bind to
-	bindAddr net.IP
 
 	// Struct with all credentials needed for any given service
 	cred *pki.MicrokubeCredentials
@@ -87,41 +82,6 @@ type Microkubed struct {
 
 	// A list of running services
 	serviceList []serviceEntry
-}
-
-// Register and evaluate command-line arguments
-func (m *Microkubed) handleArgs() {
-	verbose := flag.Bool("verbose", true, "Enable verbose output")
-	root := flag.String("root", "~/.mukube", "Microkube root directory")
-	extraBinDir := flag.String("extra-bin-dir", "", "Additional directory to search for executables")
-	podRange := flag.String("pod-range", "10.233.42.1/24", "Pod IP range to use")
-	serviceRange := flag.String("service-range", "10.233.43.1/24", "Service IP range to use")
-	sudoMethod := flag.String("sudo", "/usr/bin/pkexec", "Sudo tool to use")
-	flag.Parse()
-
-	if *verbose {
-		log.SetLevel(log.DebugLevel)
-	}
-	var err error
-	m.baseDir, err = homedir.Expand(*root)
-	if err != nil {
-		log.WithError(err).WithField("root", *root).Fatal("Couldn't expand root directory")
-	}
-	m.extraBinDir, err = homedir.Expand(*extraBinDir)
-	if err != nil {
-		log.WithError(err).WithField("extraBinDir", *extraBinDir).Fatal("Couldn't expand extraBin directory")
-	}
-
-	m.podRangeNet, m.serviceRangeNet, m.clusterIPRange, m.bindAddr, m.serviceRangeIP, err = cmd.CalculateIPRanges(*podRange, *serviceRange)
-	if err != nil {
-		log.Fatal("IP calculation returned error, aborting now!")
-	}
-
-	file, err := os.Stat(*sudoMethod)
-	if err != nil || !file.Mode().IsRegular() {
-		log.WithError(err).WithField("sudo", *sudoMethod).Fatal("Sudo method is not a regular file!")
-	}
-	m.sudoMethod = *sudoMethod
 }
 
 // Create directories and copy CNI plugins if appropriate
@@ -241,7 +201,7 @@ func (m *Microkubed) startKubeAPIServer() {
 	_, err := os.Stat(kubeconfig)
 	if err != nil {
 		log.Debug("Creating kubeconfig")
-		err = kube.CreateClientKubeconfig(m.baseExecEnv, m.cred, kubeconfig, m.bindAddr.String())
+		err = kube.CreateClientKubeconfig(m.baseExecEnv, m.cred, kubeconfig, m.baseExecEnv.ListenAddress.String())
 		if err != nil {
 			log.WithError(err).Fatal("Couldn't create kubeconfig!")
 			return
@@ -427,9 +387,42 @@ func (m *Microkubed) waitUntilNodeReady() chan bool {
 	return exitChan
 }
 
+func (m *Microkubed) startServices() {
+	services := []manifests.KubeManifestConstructor{
+		manifests.NewDNS,
+	}
+	kmri := manifests.KubeManifestRuntimeInfo{
+		ExecEnv: m.baseExecEnv,
+	}
+
+	logCtx := log.WithFields(log.Fields{
+		"app":       "microkube",
+		"component": "services",
+	})
+	for _, service := range services {
+		dnsManifest, err := service(kmri)
+		if err != nil {
+			logCtx.WithError(err).Warn("Couldn't init service!")
+			continue
+		}
+
+		err = dnsManifest.ApplyToCluster(m.cred.Kubeconfig)
+		if err != nil {
+			logCtx.WithError(err).Warn("Couldn't apply service to cluster!")
+			continue
+		}
+	}
+}
+
 // Run the actual command invocation. This function will not return until the program should exit
 func (m *Microkubed) Run() {
-	m.handleArgs()
+	argHandler := cmd.ArgHandler{}
+	m.baseExecEnv = *argHandler.HandleArgs()
+	m.baseDir = argHandler.BaseDir
+	m.extraBinDir = argHandler.ExtraBinDir
+	m.podRangeNet = argHandler.PodRangeNet
+	m.serviceRangeNet = argHandler.ServiceRangeNet
+	m.clusterIPRange = argHandler.ClusterIPRange
 
 	m.gracefulTerminationMode = false
 	log.RegisterExitHandler(func() {
@@ -447,6 +440,8 @@ func (m *Microkubed) Run() {
 	exitChan := m.waitUntilNodeReady()
 
 	m.enableHealthChecks()
+	// All good. Launch stuff
+	m.startServices()
 
 	// Wait until exit
 	<-exitChan
@@ -461,14 +456,10 @@ func (m *Microkubed) Run() {
 func (m *Microkubed) start() {
 	m.createDirectories()
 	m.cred = &pki.MicrokubeCredentials{}
-	err := m.cred.CreateOrLoadCertificates(m.baseDir, m.bindAddr, m.serviceRangeIP)
+	err := m.cred.CreateOrLoadCertificates(m.baseDir, m.baseExecEnv.ListenAddress, m.baseExecEnv.ServiceAddress)
 	if err != nil {
 		log.WithError(err).Fatal("Couldn't init credentials!")
 	}
-	m.baseExecEnv.ListenAddress = m.bindAddr
-	m.baseExecEnv.ServiceAddress = m.serviceRangeIP
-	m.baseExecEnv.SudoMethod = m.sudoMethod
-	m.baseExecEnv.InitPorts(7000)
 
 	m.findBinaries()
 

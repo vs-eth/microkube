@@ -58,8 +58,10 @@ type ExecutionEnvironment struct {
 	Workdir string
 	// ListenAddress is the address to bind exposed services to
 	ListenAddress net.IP
-	// ServiceAddress is the first address in the k8s service network
+	// ServiceAddress is the first address in the k8s service network, reserved for K8S API
 	ServiceAddress net.IP
+	// DNSAddress is the second address in the k8s service network, reserved for DNS
+	DNSAddress net.IP
 	// OutputHandler to pass command output to
 	OutputHandler OutputHandler
 	// ExitHandler to notify on command exit
@@ -117,5 +119,6 @@ func (e *ExecutionEnvironment) CopyInformationFromBase(o *ExecutionEnvironment) 
 
 	e.ListenAddress = o.ListenAddress
 	e.ServiceAddress = o.ServiceAddress
+	e.DNSAddress = o.DNSAddress
 	e.SudoMethod = o.SudoMethod
 }

@@ -186,6 +186,7 @@ import (
 	"flag"
 	"github.com/mitchellh/go-homedir"
 	log "github.com/sirupsen/logrus"
+	"github.com/uubk/microkube/internal/cmd"
 	"`)
 	bufWriter.WriteString(m.mainPkgBase + "/" + m.pkg)
 	if m.hasHealthCheck {
@@ -197,15 +198,21 @@ import (
 
 func main() {
 	kubeconfig := flag.String("kubeconfig", "~/.mukube/kube/kubeconfig", "Path to Kubeconfig")
-	flag.Parse()
+	arg := cmd.ArgHandler{}
+	kmri := manifests.KubeManifestRuntimeInfo{
+		ExecEnv: *arg.HandleArgs(),
+	}
 	var err error
 	*kubeconfig, err = homedir.Expand(*kubeconfig)
 	if err != nil {
 		log.WithError(err).WithField("root", *kubeconfig).Fatal("Couldn't expand kubeconfig")
 	}
-	obj := `)
+	obj, err := `)
 	bufWriter.WriteString(m.pkg + ".New" + m.name)
-	bufWriter.WriteString(`()
+	bufWriter.WriteString(`(kmri)
+	if err != nil {
+		log.WithError(err).WithField("root", *kubeconfig).Fatal("Couldn't init object")
+	}
 	err = obj.ApplyToCluster(*kubeconfig)
 	if err != nil {
 		log.WithError(err).WithField("root", *kubeconfig).Fatal("Couldn't apply object to cluster")
@@ -248,14 +255,19 @@ func (m *ManifestCodegen) writeFile() error {
 
 `)
 	bufWriter.WriteString("package " + m.pkg)
-	bufWriter.WriteString("\n\n")
-	if m.mainPkgBase+"/"+m.pkg != "github.com/uubk/microkube/internal/manifests" {
-		bufWriter.WriteString(`import (
-	"github.com/uubk/microkube/internal/manifests"
-)
+	bufWriter.WriteString(`
 
+
+import (
+	"bytes"
+	"text/template"
+`)
+	if m.mainPkgBase+"/"+m.pkg != "github.com/uubk/microkube/internal/manifests" {
+		bufWriter.WriteString(`
+	"github.com/uubk/microkube/internal/manifests"
 `)
 	}
+	bufWriter.WriteString(")\n")
 
 	serializer := json.Serializer{}
 	for _, entry := range m.entries {
@@ -290,22 +302,36 @@ func (m *ManifestCodegen) writeFile() error {
 	bufWriter.WriteString(`KubeManifestBase
 }
 
-func New` + m.name + `() (*` + m.name + `) {
+func New` + m.name + `(rtEnv `)
+	if m.mainPkgBase+"/"+m.pkg != "github.com/uubk/microkube/internal/manifests" {
+		bufWriter.WriteString("manifests.")
+	}
+	bufWriter.WriteString(`KubeManifestRuntimeInfo) (*` + m.name + `, error) {
 	obj := &` + m.name + ` {}
+    var err error
+    var buf *bytes.Buffer
+    var tmpl *template.Template
 
 `)
 
 	for _, entry := range m.entries {
 		// 'HO' means health object, those have to be registered differently
 		if !strings.HasSuffix(entry.name, "HO") {
-			bufWriter.WriteString(`	obj.Register(` + entry.name + ")\n")
+			bufWriter.WriteString(`	tmpl, err = template.New("` + entry.name + `").Parse(` + entry.name + `)
+	if err != nil {
+        return nil, err
+    }
+	buf = bytes.NewBufferString("")
+	tmpl.Execute(buf, rtEnv)
+    obj.Register(buf.String())
+`)
 		} else {
 			bufWriter.WriteString(`	obj.RegisterHO(` + entry.name + ")\n")
 		}
 	}
 
 	bufWriter.WriteString(`
-	return obj
+	return obj, nil
 }
 `)
 
