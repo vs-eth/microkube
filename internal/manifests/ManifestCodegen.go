@@ -189,7 +189,7 @@ import (
 	"`)
 	bufWriter.WriteString(m.mainPkgBase + "/" + m.pkg)
 	if m.hasHealthCheck {
-		bufWriter.WriteString(`
+		bufWriter.WriteString(`"
 	"time`)
 	}
 	bufWriter.WriteString(`"

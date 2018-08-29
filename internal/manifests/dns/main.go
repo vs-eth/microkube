@@ -10,7 +10,7 @@ import (
 	"flag"
 	"github.com/mitchellh/go-homedir"
 	log "github.com/sirupsen/logrus"
-	"github.com/uubk/microkube/internal/manifests
+	"github.com/uubk/microkube/internal/manifests"
 	"time"
 )
 
@@ -32,15 +32,15 @@ func main() {
 		log.WithError(err).WithField("root", *kubeconfig).Fatal("Couldn't enable health checks")
 	}
 	ok := false
-	for i := 0; i < 10 && !ok ; i++ {
+	for i := 0; i < 10 && !ok; i++ {
 		ok, err = obj.IsHealthy()
 		if err != nil {
 			log.WithError(err).WithField("root", *kubeconfig).Fatal("Couldn't enable health checks")
 		}
 		if ok {
-			break;
+			break
 		}
-		time.Sleep(1*time.Second)
+		time.Sleep(1 * time.Second)
 	}
 	log.WithField("status", ok).Info("Health check done")
 }
