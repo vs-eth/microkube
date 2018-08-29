@@ -15,10 +15,10 @@ cache:
 before_install:
 # We need glide, etcd, cni-plugins, nsenter and hyperkube
 - cd .deps
-- wget -qN https://github.com/golang/dep/releases/download/v0.5.0/dep-linux-amd64
-- wget -qN https://github.com/coreos/etcd/releases/download/v3.3.9/etcd-v3.3.9-linux-amd64.tar.gz
-- wget -qN https://dl.k8s.io/v1.11.2/kubernetes-server-linux-amd64.tar.gz
-- wget -qN https://github.com/containernetworking/plugins/releases/download/v0.7.1/cni-plugins-amd64-v0.7.1.tgz
+- wget -q -nc https://github.com/golang/dep/releases/download/v0.5.0/dep-linux-amd64
+- wget -q -nc https://github.com/coreos/etcd/releases/download/v3.3.9/etcd-v3.3.9-linux-amd64.tar.gz
+- wget -q -nc https://dl.k8s.io/v1.11.2/kubernetes-server-linux-amd64.tar.gz
+- wget -q -nc https://github.com/containernetworking/plugins/releases/download/v0.7.1/cni-plugins-amd64-v0.7.1.tgz
 - sha256sum -c .ci.sha256sum
 - mv dep-linux-amd64 $GOPATH/bin/dep && chmod +x $GOPATH/bin/dep
 - cd ..
