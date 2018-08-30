@@ -418,7 +418,7 @@ func (m *Microkubed) startServices() {
 
 // Run the actual command invocation. This function will not return until the program should exit
 func (m *Microkubed) Run() {
-	argHandler := cmd.ArgHandler{}
+	argHandler := cmd.NewArgHandler(true)
 	m.baseExecEnv = *argHandler.HandleArgs()
 	m.baseDir = argHandler.BaseDir
 	m.extraBinDir = argHandler.ExtraBinDir

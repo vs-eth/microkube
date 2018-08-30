@@ -469,22 +469,9 @@
   version = "v1.0.2"
 
 [[projects]]
-  digest = "1:bc0e3de5e9bea5d4efb093af21932b620b715a02630ed820d545850ddff59baa"
-  name = "github.com/stretchr/objx"
-  packages = ["."]
-  pruneopts = "U"
-  revision = "477a77ecc69700c7cdeb1fa9e129548e1c1c393c"
-  version = "v0.1.1"
-
-[[projects]]
-  digest = "1:ba6e4d00534314e507907de7e826d6eb5e4d4a2a4e6fdfe0315f17141ddd06d0"
+  digest = "1:f69384f8f8e414f62bb934ef0ef9dfaa880ce3e2a6f4f3f1cdbd1ca797c8e707"
   name = "github.com/stretchr/testify"
-  packages = [
-    ".",
-    "assert",
-    "http",
-    "mock",
-  ]
+  packages = ["assert"]
   pruneopts = "U"
   revision = "f35b8ab0b5a2cef36673838d662e249dd9c94686"
   version = "v1.2.2"
@@ -1064,7 +1051,7 @@
     "github.com/mitchellh/go-homedir",
     "github.com/pkg/errors",
     "github.com/sirupsen/logrus",
-    "github.com/stretchr/testify",
+    "github.com/stretchr/testify/assert",
     "k8s.io/api/apps/v1",
     "k8s.io/api/core/v1",
     "k8s.io/api/extensions/v1beta1",

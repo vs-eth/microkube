@@ -25,6 +25,24 @@ import (
 	"os"
 )
 
+// argHandlerGlobalState contains the values of all arguments, because flag.CommandLine is a) global and b) cannot be
+// resetted. Running two unit tests which initialize two instances of ArgHandler would therefore crash. To work around
+// this issue, we create each flag precisely once and point them to an instance of this struct so that we can reuse
+// flags across instances of ArgHandler
+type argHandlerGlobalState struct {
+	verbose        bool
+	root           string
+	extraBinDir    string
+	podRange       string
+	serviceRange   string
+	sudoMethod     string
+	enableDns      bool
+	enableKubeDash bool
+}
+
+// gs contains the instance of argHandlerGlobalState
+var gs = argHandlerGlobalState{}
+
 // ArgHandler provides applications with a unified set of command line parameters
 type ArgHandler struct {
 	/* Extracted data */
@@ -38,51 +56,79 @@ type ArgHandler struct {
 	ServiceRangeNet *net.IPNet
 	// Network range that contains both pod and service range
 	ClusterIPRange *net.IPNet
+	// Whether to deploy the kubernetes dashboard cluster addon
+	EnableKubeDash bool
+	// Whether to deploy the CoreDNS cluster addon
+	EnableDns bool
 
-	/* Arguments */
-	verbose      *bool
-	root         *string
-	extraBinDir  *string
-	podRange     *string
-	serviceRange *string
-	sudoMethod   *string
+	// Whether we should set up all arguments (main binary) or only shared arguments (cluster parameters)
+	isMainBinary bool
+}
+
+// NewArgHandler returns a new instance of ArgHandler, registering arguments if necessary
+func NewArgHandler(isMainBinary bool) *ArgHandler {
+	obj := ArgHandler{
+		isMainBinary: isMainBinary,
+	}
+	obj.setupArgs()
+	return &obj
 }
 
 // HandleArgs registers, parses and evaluates command line arguments
 func (a *ArgHandler) HandleArgs() *handlers.ExecutionEnvironment {
-	a.setupArgs()
 	flag.Parse()
 	return a.evalArgs()
 }
 
+// setupBoolArg creates a boolean argument if necessary. Subsequent calls will be ignored.
+func (a *ArgHandler) setupBoolArg(name, description string, global *bool, defaultVal bool) {
+	lk := flag.Lookup(name)
+	if lk == nil {
+		flag.BoolVar(global, name, defaultVal, description)
+	}
+}
+
+// setupStringArg creates a string argument if necessary. Subsequent calls will be ignored.
+func (a *ArgHandler) setupStringArg(name, description string, global *string, defaultVal string) {
+	lk := flag.Lookup(name)
+	if lk == nil {
+		flag.StringVar(global, name, defaultVal, description)
+	}
+}
+
 // setupArg registers command line arguments
 func (a *ArgHandler) setupArgs() {
-	a.verbose = flag.Bool("verbose", true, "Enable verbose output")
-	a.root = flag.String("root", "~/.mukube", "Microkube root directory")
-	a.extraBinDir = flag.String("extra-bin-dir", "", "Additional directory to search for executables")
-	a.podRange = flag.String("pod-range", "10.233.42.1/24", "Pod IP range to use")
-	a.serviceRange = flag.String("service-range", "10.233.43.1/24", "Service IP range to use")
-	a.sudoMethod = flag.String("sudo", "/usr/bin/pkexec", "Sudo tool to use")
+	a.setupBoolArg("verbose", "Enable verbose output", &gs.verbose, false)
+	a.setupStringArg("pod-range", "Pod IP range to use", &gs.podRange, "10.233.42.1/24")
+	a.setupStringArg("service-range", "Service IP range to use", &gs.serviceRange, "10.233.43.1/24")
+
+	if a.isMainBinary {
+		a.setupStringArg("root", "Microkube root directory", &gs.root, "~/.mukube")
+		a.setupStringArg("extra-bin-dir", "Additional directory to search for executables", &gs.extraBinDir, "")
+		a.setupStringArg("sudo", "Sudo tool to use", &gs.sudoMethod, "/usr/bin/pkexec")
+		a.setupBoolArg("kube-dash", "Enable the kubernetes dashboard deployment", &gs.enableKubeDash, true)
+		a.setupBoolArg("dns", "Enable the DNS deployment", &gs.enableDns, true)
+	}
 }
 
 // evalArgs parses the command line arguments
 func (a *ArgHandler) evalArgs() *handlers.ExecutionEnvironment {
-	if *a.verbose {
+	if gs.verbose {
 		log.SetLevel(log.DebugLevel)
 	}
 	var err error
-	a.BaseDir, err = homedir.Expand(*a.root)
+	a.BaseDir, err = homedir.Expand(gs.root)
 	if err != nil {
-		log.WithError(err).WithField("root", *a.root).Fatal("Couldn't expand root directory")
+		log.WithError(err).WithField("root", gs.root).Fatal("Couldn't expand root directory")
 	}
-	a.ExtraBinDir, err = homedir.Expand(*a.extraBinDir)
+	a.ExtraBinDir, err = homedir.Expand(gs.extraBinDir)
 	if err != nil {
-		log.WithError(err).WithField("extraBinDir", *a.extraBinDir).Fatal("Couldn't expand extraBin directory")
+		log.WithError(err).WithField("extraBinDir", gs.extraBinDir).Fatal("Couldn't expand extraBin directory")
 	}
 
 	var serviceRangeIP net.IP
 	var bindAddr net.IP
-	a.PodRangeNet, a.ServiceRangeNet, a.ClusterIPRange, bindAddr, serviceRangeIP, err = CalculateIPRanges(*a.podRange, *a.serviceRange)
+	a.PodRangeNet, a.ServiceRangeNet, a.ClusterIPRange, bindAddr, serviceRangeIP, err = CalculateIPRanges(gs.podRange, gs.serviceRange)
 	if err != nil {
 		log.Fatal("IP calculation returned error, aborting now!")
 	}
@@ -90,16 +136,19 @@ func (a *ArgHandler) evalArgs() *handlers.ExecutionEnvironment {
 	copy(dnsIP, serviceRangeIP)
 	dnsIP[15]++
 
-	file, err := os.Stat(*a.sudoMethod)
+	file, err := os.Stat(gs.sudoMethod)
 	if err != nil || !file.Mode().IsRegular() {
-		log.WithError(err).WithField("sudo", *a.sudoMethod).Fatal("Sudo method is not a regular file!")
+		log.WithError(err).WithField("sudo", gs.sudoMethod).Fatal("Sudo method is not a regular file!")
 	}
+
+	a.EnableKubeDash = gs.enableKubeDash
+	a.EnableDns = gs.enableDns
 
 	baseExecEnv := handlers.ExecutionEnvironment{}
 	baseExecEnv.ListenAddress = bindAddr
 	baseExecEnv.ServiceAddress = serviceRangeIP
 	baseExecEnv.DNSAddress = dnsIP
-	baseExecEnv.SudoMethod = *a.sudoMethod
+	baseExecEnv.SudoMethod = gs.sudoMethod
 	baseExecEnv.InitPorts(7000)
 	return &baseExecEnv
 }

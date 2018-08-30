@@ -25,7 +25,8 @@ import (
 
 // TestBasicArgParse checks whether 'normal' arg parsing works successfully
 func TestBasicArgParse(t *testing.T) {
-	uut := ArgHandler{}
+	flag.CommandLine.Args()
+	uut := NewArgHandler(true)
 	uut.setupArgs()
 
 	args := []string{
@@ -41,14 +42,14 @@ func TestBasicArgParse(t *testing.T) {
 	execEnv := uut.evalArgs()
 	assert.Equal(t, "/tmp", uut.BaseDir, "Unexpected base dir value")
 	assert.Equal(t, "/tmp/bin", uut.ExtraBinDir, "Unexpected extra bin dir value")
-	assert.Equal(t, true, *uut.verbose, "Unexpected verbosity value")
+	assert.Equal(t, true, gs.verbose, "Unexpected verbosity value")
 	assert.Equal(t, net.IPv4(10, 233, 43, 2), execEnv.DNSAddress, "Unexpected dns address")
 	assert.Equal(t, net.IPv4(10, 233, 43, 1), execEnv.ServiceAddress, "Unexpected service address")
 }
 
 // TestAllArgParse checks whether arg parsing with all arguments works successfully
 func TestAllArgParse(t *testing.T) {
-	uut := ArgHandler{}
+	uut := NewArgHandler(true)
 	uut.setupArgs()
 
 	args := []string{
@@ -68,7 +69,7 @@ func TestAllArgParse(t *testing.T) {
 	execEnv := uut.evalArgs()
 	assert.Equal(t, "/tmp", uut.BaseDir, "Unexpected base dir value")
 	assert.Equal(t, "/tmp/bin", uut.ExtraBinDir, "Unexpected extra bin dir value")
-	assert.Equal(t, true, *uut.verbose, "Unexpected verbosity value")
+	assert.Equal(t, true, gs.verbose, "Unexpected verbosity value")
 	assert.Equal(t, net.IPv4(192, 168, 11, 2), execEnv.DNSAddress, "Unexpected dns address")
 	assert.Equal(t, net.IPv4(192, 168, 11, 1), execEnv.ServiceAddress, "Unexpected service address")
 }
