@@ -49,7 +49,18 @@ type KubeManifestBase struct {
 	healthObjParsed runtime.Object
 }
 
-type KubeManifestConstructor func(KubeManifestRuntimeInfo) (*DNS, error)
+// KubeManifest is implemented by all types that can be applied to a kube cluster as supported by KubeManifestBase
+type KubeManifest interface {
+	// ApplyToCluster applies this manifest to the kubernetes cluster specified in 'kubeconfig'
+	ApplyToCluster(kubeconfig string) error
+	// IsHealthy checks whether the resources this manifest describes can be considered 'healthy'
+	// You'll need to run InitHealthCheck first.
+	IsHealthy() (bool, error)
+	// InitHealthCheck prepares this object for health checks
+	InitHealthCheck(kubeconfig string) error
+}
+
+type KubeManifestConstructor func(KubeManifestRuntimeInfo) (KubeManifest, error)
 
 // Register registers the manifest 'manifest' (JSON string) with this instance of KubeManifestBase. It is supposed to
 // be only used by derived types!

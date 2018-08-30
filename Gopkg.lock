@@ -413,6 +413,14 @@
   version = "v0.8.0"
 
 [[projects]]
+  digest = "1:97f2e3987902ab89b6fe5cff761b3b318aed6fb3c0d9cc31986073e7fae2444a"
+  name = "github.com/pmezard/go-difflib"
+  packages = ["difflib"]
+  pruneopts = "U"
+  revision = "792786c7400a136282c1664665ae0a8db921c6c2"
+  version = "v1.0.0"
+
+[[projects]]
   digest = "1:67e1c0452400f76beb20d393d1af7ac30039188fbc4db2ad24babd57cd433b03"
   name = "github.com/renstrom/dedent"
   packages = ["."]
@@ -459,6 +467,27 @@
   pruneopts = "U"
   revision = "9a97c102cda95a86cec2345a6f09f55a939babf5"
   version = "v1.0.2"
+
+[[projects]]
+  digest = "1:bc0e3de5e9bea5d4efb093af21932b620b715a02630ed820d545850ddff59baa"
+  name = "github.com/stretchr/objx"
+  packages = ["."]
+  pruneopts = "U"
+  revision = "477a77ecc69700c7cdeb1fa9e129548e1c1c393c"
+  version = "v0.1.1"
+
+[[projects]]
+  digest = "1:ba6e4d00534314e507907de7e826d6eb5e4d4a2a4e6fdfe0315f17141ddd06d0"
+  name = "github.com/stretchr/testify"
+  packages = [
+    ".",
+    "assert",
+    "http",
+    "mock",
+  ]
+  pruneopts = "U"
+  revision = "f35b8ab0b5a2cef36673838d662e249dd9c94686"
+  version = "v1.2.2"
 
 [[projects]]
   branch = "master"
@@ -1035,9 +1064,10 @@
     "github.com/mitchellh/go-homedir",
     "github.com/pkg/errors",
     "github.com/sirupsen/logrus",
+    "github.com/stretchr/testify",
     "k8s.io/api/apps/v1",
-    "k8s.io/api/apps/v1beta1",
     "k8s.io/api/core/v1",
+    "k8s.io/api/extensions/v1beta1",
     "k8s.io/api/policy/v1beta1",
     "k8s.io/apimachinery/pkg/api/errors",
     "k8s.io/apimachinery/pkg/apis/meta/v1",

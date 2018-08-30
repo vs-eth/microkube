@@ -28,6 +28,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime/serializer/json"
 	"k8s.io/client-go/kubernetes/scheme"
 	"os"
+	"regexp"
 	"strconv"
 	"strings"
 )
@@ -84,7 +85,9 @@ func (m *ManifestCodegen) ParseFile() error {
 	if err != nil {
 		return err
 	}
-	parts := strings.Split(string(buf), "---")
+	splitRegex := regexp.MustCompilePOSIX(`^\-\-\-`)
+	parts := splitRegex.Split(string(buf), -1)
+	//parts := strings.Split(string(buf), "---")
 
 	for _, doc := range parts {
 		err = m.parseDoc(doc)
@@ -305,7 +308,7 @@ func New` + m.name + `(rtEnv `)
 	if m.mainPkgBase+"/"+m.pkg != "github.com/uubk/microkube/internal/manifests" {
 		bufWriter.WriteString("manifests.")
 	}
-	bufWriter.WriteString(`KubeManifestRuntimeInfo) (*` + m.name + `, error) {
+	bufWriter.WriteString(`KubeManifestRuntimeInfo) (KubeManifest, error) {
 	obj := &` + m.name + `{}
 	var err error
 	var buf *bytes.Buffer

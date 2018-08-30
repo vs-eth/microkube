@@ -27,39 +27,62 @@ import (
 
 // ArgHandler provides applications with a unified set of command line parameters
 type ArgHandler struct {
-	BaseDir         string
-	ExtraBinDir     string
-	PodRangeNet     *net.IPNet
+	/* Extracted data */
+	// Directory to create all state directories in
+	BaseDir string
+	// Directory to additionally include in the binary search path
+	ExtraBinDir string
+	// Network range to use for pods
+	PodRangeNet *net.IPNet
+	// Network range to use for services
 	ServiceRangeNet *net.IPNet
-	ClusterIPRange  *net.IPNet
+	// Network range that contains both pod and service range
+	ClusterIPRange *net.IPNet
+
+	/* Arguments */
+	verbose      *bool
+	root         *string
+	extraBinDir  *string
+	podRange     *string
+	serviceRange *string
+	sudoMethod   *string
 }
 
-// HandleArgs registers and evaluates command-line arguments
+// HandleArgs registers, parses and evaluates command line arguments
 func (a *ArgHandler) HandleArgs() *handlers.ExecutionEnvironment {
-	verbose := flag.Bool("verbose", true, "Enable verbose output")
-	root := flag.String("root", "~/.mukube", "Microkube root directory")
-	extraBinDir := flag.String("extra-bin-dir", "", "Additional directory to search for executables")
-	podRange := flag.String("pod-range", "10.233.42.1/24", "Pod IP range to use")
-	serviceRange := flag.String("service-range", "10.233.43.1/24", "Service IP range to use")
-	sudoMethod := flag.String("sudo", "/usr/bin/pkexec", "Sudo tool to use")
+	a.setupArgs()
 	flag.Parse()
+	return a.evalArgs()
+}
 
-	if *verbose {
+// setupArg registers command line arguments
+func (a *ArgHandler) setupArgs() {
+	a.verbose = flag.Bool("verbose", true, "Enable verbose output")
+	a.root = flag.String("root", "~/.mukube", "Microkube root directory")
+	a.extraBinDir = flag.String("extra-bin-dir", "", "Additional directory to search for executables")
+	a.podRange = flag.String("pod-range", "10.233.42.1/24", "Pod IP range to use")
+	a.serviceRange = flag.String("service-range", "10.233.43.1/24", "Service IP range to use")
+	a.sudoMethod = flag.String("sudo", "/usr/bin/pkexec", "Sudo tool to use")
+}
+
+// evalArgs parses the command line arguments
+func (a *ArgHandler) evalArgs() *handlers.ExecutionEnvironment {
+	if *a.verbose {
 		log.SetLevel(log.DebugLevel)
 	}
 	var err error
-	a.BaseDir, err = homedir.Expand(*root)
+	a.BaseDir, err = homedir.Expand(*a.root)
 	if err != nil {
-		log.WithError(err).WithField("root", *root).Fatal("Couldn't expand root directory")
+		log.WithError(err).WithField("root", *a.root).Fatal("Couldn't expand root directory")
 	}
-	a.ExtraBinDir, err = homedir.Expand(*extraBinDir)
+	a.ExtraBinDir, err = homedir.Expand(*a.extraBinDir)
 	if err != nil {
-		log.WithError(err).WithField("extraBinDir", *extraBinDir).Fatal("Couldn't expand extraBin directory")
+		log.WithError(err).WithField("extraBinDir", *a.extraBinDir).Fatal("Couldn't expand extraBin directory")
 	}
 
 	var serviceRangeIP net.IP
 	var bindAddr net.IP
-	a.PodRangeNet, a.ServiceRangeNet, a.ClusterIPRange, bindAddr, serviceRangeIP, err = CalculateIPRanges(*podRange, *serviceRange)
+	a.PodRangeNet, a.ServiceRangeNet, a.ClusterIPRange, bindAddr, serviceRangeIP, err = CalculateIPRanges(*a.podRange, *a.serviceRange)
 	if err != nil {
 		log.Fatal("IP calculation returned error, aborting now!")
 	}
@@ -67,16 +90,16 @@ func (a *ArgHandler) HandleArgs() *handlers.ExecutionEnvironment {
 	copy(dnsIP, serviceRangeIP)
 	dnsIP[15]++
 
-	file, err := os.Stat(*sudoMethod)
+	file, err := os.Stat(*a.sudoMethod)
 	if err != nil || !file.Mode().IsRegular() {
-		log.WithError(err).WithField("sudo", *sudoMethod).Fatal("Sudo method is not a regular file!")
+		log.WithError(err).WithField("sudo", *a.sudoMethod).Fatal("Sudo method is not a regular file!")
 	}
 
 	baseExecEnv := handlers.ExecutionEnvironment{}
 	baseExecEnv.ListenAddress = bindAddr
 	baseExecEnv.ServiceAddress = serviceRangeIP
 	baseExecEnv.DNSAddress = dnsIP
-	baseExecEnv.SudoMethod = *sudoMethod
+	baseExecEnv.SudoMethod = *a.sudoMethod
 	baseExecEnv.InitPorts(7000)
 	return &baseExecEnv
 }

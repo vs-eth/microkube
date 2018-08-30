@@ -23,7 +23,7 @@ type DNS struct {
 	KubeManifestBase
 }
 
-func NewDNS(rtEnv KubeManifestRuntimeInfo) (*DNS, error) {
+func NewDNS(rtEnv KubeManifestRuntimeInfo) (KubeManifest, error) {
 	obj := &DNS{}
 	var err error
 	var buf *bytes.Buffer
