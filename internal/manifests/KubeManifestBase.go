@@ -92,10 +92,19 @@ func (m *KubeManifestBase) SetName(name string) {
 
 // ApplyToCluster applies this manifest to the kubernetes cluster specified in 'kubeconfig'
 func (m *KubeManifestBase) ApplyToCluster(kubeconfig string) error {
+	str, err := m.dumpToFile()
+	if err != nil {
+		return err
+	}
+	return m.runApply(kubeconfig, str)
+}
+
+// dumpToFile writes a manifest file suitable for kubectl apply
+func (m *KubeManifestBase) dumpToFile() (string, error) {
 	file, err := ioutil.TempFile("", "kube-apply-manifest")
 	if err != nil {
 		file.Close()
-		return err
+		return "", err
 	}
 
 	for _, obj := range m.objects {
@@ -109,21 +118,26 @@ func (m *KubeManifestBase) ApplyToCluster(kubeconfig string) error {
 	}
 
 	file.Close()
+	return file.Name(), nil
+}
+
+// runApply runs kubectl apply
+func (m *KubeManifestBase) runApply(kubeconfig, file string) error {
+	// TODO(uubk): Find a nicer way to do this
+	// Invoking kubectl apply is probably the most future-proof way to do this, but it's also blowing up 4KB of YAML
+	// to around 50 MB of binary when generating one...
 
 	// This is exceedingly important: If you don't do this, the client config merge will not work correctly and always
 	// overwrite your server url with localhost:8080.
 	clientcmd.ClusterDefaults.Server = ""
 
-	// TODO(uubk): Find a nicer way to do this
-	// Invoking kubectl apply is probably the most future-proof way to do this, but it's also blowing up 4KB of YAML
-	// to around 50 MB of binary when generating one...
 	buf := bytes.Buffer{}
 	cmd := cmd2.NewKubectlCommand(nil, &buf, os.Stderr)
 	args := []string{
 		"--kubeconfig=" + kubeconfig,
 		"apply",
 		"-f",
-		file.Name(),
+		file,
 	}
 	cmd.SetArgs(args)
 
@@ -196,6 +210,14 @@ func (m *KubeManifestBase) InitHealthCheck(kubeconfig string) error {
 		return errors.New("no health manifest registered")
 	}
 
+	// Decode object into Kubernetes object
+	decodeFun := scheme.Codecs.UniversalDeserializer().Decode
+	var err error
+	m.healthObjParsed, _, err = decodeFun([]byte(m.healthObj), nil, nil)
+	if err != nil {
+		return err
+	}
+
 	// Init kube client
 	config, err := clientcmd.BuildConfigFromFlags("", kubeconfig)
 	if err != nil {
@@ -206,11 +228,5 @@ func (m *KubeManifestBase) InitHealthCheck(kubeconfig string) error {
 		return err
 	}
 
-	// Decode object into Kubernetes object
-	decodeFun := scheme.Codecs.UniversalDeserializer().Decode
-	m.healthObjParsed, _, err = decodeFun([]byte(m.healthObj), nil, nil)
-	if err != nil {
-		return err
-	}
 	return nil
 }
