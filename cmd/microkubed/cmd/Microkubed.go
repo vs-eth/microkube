@@ -334,9 +334,7 @@ func (m *Microkubed) checkService(handler serviceEntry) {
 	for {
 		select {
 		case <-handler.exitChan:
-			// Tests do not set gracefulTerminationMode to true. Use this to prevent us exitting improperly during an
-			// unit test
-			if m.gracefulTerminationMode {
+			if !m.gracefulTerminationMode {
 				log.Fatal("Service " + handler.name + " exitted, aborting!")
 			}
 		case msg := <-handler.healthChan:

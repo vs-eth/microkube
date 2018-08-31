@@ -41,6 +41,8 @@ script:
 
 install:
 - dep ensure
+- go get -u github.com/sirkon/ldetool
+- make generate
 
 after_success:
 - cat cover1 cover2 > coverage.txt
