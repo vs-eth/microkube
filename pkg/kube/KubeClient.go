@@ -28,6 +28,7 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/clientcmd"
+	"strings"
 	"time"
 )
 
@@ -91,6 +92,69 @@ func (k *KubeClient) findNode() {
 	}
 	k.nodeRef = &nodeList.Items[0]
 	k.node = k.nodeRef.Name
+}
+
+func (k *KubeClient) FindDashboardAdminSecret() string {
+	k.findNode()
+	if k.node == "" {
+		return ""
+	}
+
+	secList, err := k.client.CoreV1().Secrets("kube-system").List(v1.ListOptions{})
+	if err != nil {
+		log.WithFields(log.Fields{
+			"app":       "microkube",
+			"component": "kube-interface",
+		}).WithError(err).Warn("Couldn't search for secrets!")
+	}
+	for _, sec := range secList.Items {
+		if strings.HasPrefix(sec.ObjectMeta.Name, "admin-user-token-") {
+			encodedValue := sec.Data["token"]
+			if encodedValue == nil {
+				log.WithFields(log.Fields{
+					"app":       "microkube",
+					"component": "kube-interface",
+					"secret":    sec.ObjectMeta.Name,
+				}).Warn("Found secret, but it didn't contain a token?")
+				continue
+			}
+			/*buf := make([]byte, base64.StdEncoding.DecodedLen(len(encodedValue)))
+			n, err := base64.StdEncoding.Decode(buf, encodedValue)
+			if err != nil {
+				log.WithFields(log.Fields{
+					"app":       "microkube",
+					"component": "kube-interface",
+					"secret":    sec.ObjectMeta.Name,
+					"n":         n,
+				}).WithError(err).Warn("Found secret, but token was invalid base64")
+				continue
+			}*/
+			return string(encodedValue)
+		}
+	}
+	return ""
+}
+
+func (k *KubeClient) FindService(serviceName string) (string, int32) {
+	k.findNode()
+	if k.node == "" {
+		return "", 0
+	}
+
+	service, err := k.client.CoreV1().Services("kube-system").Get(serviceName, v1.GetOptions{})
+	if err != nil {
+		log.WithFields(log.Fields{
+			"app":       "microkube",
+			"component": "kube-interface",
+		}).WithError(err).Warn("Couldn't find requested service!")
+		return "", 0
+	}
+	for _, port := range service.Spec.Ports {
+		if port.Protocol == av1.ProtocolTCP {
+			return service.Spec.ClusterIP, port.Port
+		}
+	}
+	return service.Spec.ClusterIP, 0
 }
 
 // setNodeUnschedulable sets a node (un)schedulable.
