@@ -8,8 +8,8 @@ go:
 
 cache:
   directories:
-  - /home/travis/gopath/src/github.com/uubk/microkube/.deps
-  - /home/travis/gopath/src/github.com/uubk/microkube/vendor
+  - /home/travis/gopath/src/github.com/vs-eth/microkube/.deps
+  - /home/travis/gopath/src/github.com/vs-eth/microkube/vendor
   #- /home/travis/gopath/pkg/dep
 
 before_install:
