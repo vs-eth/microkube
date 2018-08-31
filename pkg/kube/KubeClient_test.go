@@ -82,7 +82,8 @@ func TestKubeClientWait(t *testing.T) {
 	uut := KubeClient{
 		client: fakeKube,
 	}
-	ctx, _ := context.WithTimeout(context.Background(), 1*time.Second)
+	ctx, cfunc := context.WithTimeout(context.Background(), 1*time.Second)
+	defer cfunc()
 	err := uut.WaitForNode(ctx)
 	if err == nil {
 		t.Fatal("Expected error missing")
@@ -96,7 +97,8 @@ func TestKubeClientWait(t *testing.T) {
 	uut = KubeClient{
 		client: fakeKube,
 	}
-	ctx, _ = context.WithTimeout(context.Background(), 1*time.Second)
+	ctx, cfunc = context.WithTimeout(context.Background(), 1*time.Second)
+	defer cfunc()
 	err = uut.WaitForNode(ctx)
 	if err != nil {
 		t.Fatalf("Unexpected error: '%s'", err)
@@ -107,7 +109,8 @@ func TestKubeClientWait(t *testing.T) {
 	uut = KubeClient{
 		client: fakeKube,
 	}
-	ctx, _ = context.WithTimeout(context.Background(), 1*time.Second)
+	ctx, cfunc = context.WithTimeout(context.Background(), 1*time.Second)
+	defer cfunc()
 	err = uut.WaitForNode(ctx)
 	if err != nil {
 		t.Fatalf("Unexpected error: '%s'", err)

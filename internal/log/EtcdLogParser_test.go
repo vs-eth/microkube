@@ -96,7 +96,7 @@ func TestInvalidETCDMessageType(t *testing.T) {
 	}
 }
 
-// TestETCDSpamDrop tests whether some etcd log messages are dropped correclty
+// TestETCDSpamDrop tests whether some etcd log messages are dropped correctly
 func TestETCDSystemdSpamDrop(t *testing.T) {
 	var buffer bytes.Buffer
 	testStr := `2018-08-20 14:43:34.123265 I | embed: rejected connection from "127.0.0.1:35606" (error "EOF", ServerName "")

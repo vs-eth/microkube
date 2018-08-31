@@ -34,7 +34,7 @@ type MicrokubeCredentials struct {
 	uutMode bool
 }
 
-// Create certificates if they don't already exist
+// CreateOrLoadCertificates creates certificates if they don't already exist or loads them if they do exist
 func (m *MicrokubeCredentials) CreateOrLoadCertificates(baseDir string, bindAddr, serviceAddr net.IP) error {
 	var err error
 	os.Mkdir(path.Join(baseDir, "etcdtls"), 0750)
@@ -67,7 +67,9 @@ func (m *MicrokubeCredentials) CreateOrLoadCertificates(baseDir string, bindAddr
 //  - A server certificate with SANs 'ip' and name 'name Server' in server.pem and server.key
 //  - A client certificate with name 'name Client' in 'client.pem' and 'client.key', optionally containing
 //    'system:masters' as O when 'isKubeCA' is set to true
-func (m *MicrokubeCredentials) ensureFullPKI(root, name string, isKubeCA, isETCDCA bool, ip []string) (ca *RSACertificate, server *RSACertificate, client *RSACertificate, err error) {
+func (m *MicrokubeCredentials) ensureFullPKI(root, name string, isKubeCA, isETCDCA bool,
+	ip []string) (ca *RSACertificate, server *RSACertificate, client *RSACertificate, err error) {
+
 	caFile := path.Join(root, "ca.pem")
 	_, err = os.Stat(caFile)
 	if err != nil {

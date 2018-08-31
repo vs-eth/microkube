@@ -31,7 +31,7 @@ func TestEtcdStartup(t *testing.T) {
 		}
 	}
 	handler, _, _, err := helpers.StartHandlerForTest(30000, "etcd", "etcd", EtcdHandlerConstructor,
-		exitHandler, false, 1, nil, nil)
+		exitHandler, false, 30, nil, nil)
 	if err != nil {
 		t.Fatal("Test failed:", err)
 		return
