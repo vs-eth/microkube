@@ -23,10 +23,10 @@ import (
 )
 
 // ipArrForStringArr converts an array of strings to an array of IPs
-func ipArrForStringArr(candidates_str []string) ([]net.IP, net.IP) {
+func ipArrForStringArr(candidatesStr []string) ([]net.IP, net.IP) {
 	var candidates []net.IP
 	var lastIP net.IP
-	for _, addr := range candidates_str {
+	for _, addr := range candidatesStr {
 		lastIP = net.ParseIP(addr)
 		candidates = append(candidates, lastIP)
 	}
@@ -43,34 +43,34 @@ func TestFindBindAddress(t *testing.T) {
 
 // TestAddressSelection tests whether findBindAddress selects the correct address from a list of candidates
 func TestAddressSelection(t *testing.T) {
-	candidates_str := []string{
+	candidatesStr := []string{
 		"100.64.1.1",
 		"100.65.1.1",
 		"192.168.10.1",
 	}
-	candidates, lastIP := ipArrForStringArr(candidates_str)
+	candidates, lastIP := ipArrForStringArr(candidatesStr)
 
 	addr := findBindAddress(candidates)
 	if addr.String() != lastIP.String() {
 		t.Fatal("Invalid address returned!")
 	}
 
-	candidates_str = []string{
+	candidatesStr = []string{
 		"127.0.0.1",
 		"192.168.10.1",
 	}
-	candidates, lastIP = ipArrForStringArr(candidates_str)
+	candidates, lastIP = ipArrForStringArr(candidatesStr)
 
 	addr = findBindAddress(candidates)
 	if addr.String() != lastIP.String() {
 		t.Fatal("Invalid address returned!")
 	}
 
-	candidates_str = []string{
+	candidatesStr = []string{
 		"10.30.0.72",
 		"172.17.0.1",
 	}
-	candidates, _ = ipArrForStringArr(candidates_str)
+	candidates, _ = ipArrForStringArr(candidatesStr)
 
 	addr = findBindAddress(candidates)
 	if addr.String() != candidates[0].String() {
@@ -81,11 +81,11 @@ func TestAddressSelection(t *testing.T) {
 // TestAddressFallback tests whether findBindAddress correctly falls back to a public IPv4 if no private one is found
 func TestAddressFallback(t *testing.T) {
 	logrus.SetLevel(logrus.WarnLevel)
-	candidates_str := []string{
+	candidatesStr := []string{
 		"100.64.1.1",
 		"100.65.1.1",
 	}
-	candidates, _ := ipArrForStringArr(candidates_str)
+	candidates, _ := ipArrForStringArr(candidatesStr)
 
 	addr := findBindAddress(candidates)
 	if addr.String() != candidates[0].String() {

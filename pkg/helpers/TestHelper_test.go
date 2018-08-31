@@ -37,9 +37,8 @@ func (d *dummyServiceHandler) Start() error {
 	d.errorCallCount--
 	if d.errorCallCount == 0 {
 		return errors.New("Test error")
-	} else {
-		return nil
 	}
+	return nil
 }
 
 // EnableHealthChecks enable health checks, either for one check (forever == false) or until the process is stopped.

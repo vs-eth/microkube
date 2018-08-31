@@ -41,7 +41,7 @@ func NewKubeLogParser(app string) *KubeLogParser {
 		app:            app,
 		regexpInstance: regexp.MustCompile("[ ]+"),
 	}
-	obj.BaseLogParser = *NewBaseLogParser(obj.handleLine)
+	obj.BaseLogParser = *NewBaseLogParser(obj.handleLine, "kube")
 	return &obj
 }
 
@@ -53,12 +53,12 @@ func (h *KubeLogParser) handleLine(lineStr string) error {
 		ok, _ := line.Extract(lineStr) // With the current format, this function will never return an error
 		if !ok {
 			// Whelp. Normal format didn't work out, assume this line is simply unformatted...
-			logrus.WithFields(logrus.Fields{
+			h.log.WithFields(logrus.Fields{
 				"app": h.app,
 			}).Warn(strings.Trim(lineStr, "\n"))
 			return nil
 		}
-		logrus.WithFields(logrus.Fields{
+		h.log.WithFields(logrus.Fields{
 			"component": "restful",
 			"location":  line.Location,
 			"app":       h.app,
@@ -72,7 +72,7 @@ func (h *KubeLogParser) handleLine(lineStr string) error {
 		ok, _ := line.Extract(lineStr) // With the current format, this function will never return an error
 		if ok {
 			// Yay, this is a normal log entry!
-			entry := logrus.WithFields(logrus.Fields{
+			entry := h.log.WithFields(logrus.Fields{
 				"app":      h.app,
 				"location": line.Location,
 			})
@@ -91,18 +91,18 @@ func (h *KubeLogParser) handleLine(lineStr string) error {
 			case 'S': // Severe is handled as error
 				entry.Error(line.Message)
 			default:
-				logrus.WithFields(logrus.Fields{
+				h.log.WithFields(logrus.Fields{
 					"component": "KubeLogParser",
 					"app":       "microkube",
 					"level":     line.SeverityID[0],
 				}).Warn("Unknown severity level in kube log parser")
-				logrus.WithFields(logrus.Fields{
+				h.log.WithFields(logrus.Fields{
 					"app": h.app,
 				}).Warn(lineStr)
 			}
 		} else {
 			// Whelp. Normal format didn't work out, assume this line is simply unformatted...
-			logrus.WithFields(logrus.Fields{
+			h.log.WithFields(logrus.Fields{
 				"app": h.app,
 			}).Warn(strings.Trim(lineStr, "\n"))
 		}

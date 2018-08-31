@@ -72,7 +72,7 @@ func TestEnsureFullPKI(t *testing.T) {
 
 	// EnsureFullPKI uses the CertManager class to generate the certificates, which is tested separately
 	// We therefore assume that the individual certificates are generated correctly
-	files_initial := []string{
+	filesInitial := []string{
 		ca.CertPath,
 		ca.KeyPath,
 		server.CertPath,
@@ -80,14 +80,14 @@ func TestEnsureFullPKI(t *testing.T) {
 		client.CertPath,
 		client.KeyPath,
 	}
-	checkFilesExist(files_initial, t)
+	checkFilesExist(filesInitial, t)
 
 	// Test reload
 	ca, server, client, err = dummy.ensureFullPKI(directory, "testpki", false, false, []string{"127.0.0.1"})
 	if err != nil {
 		t.Fatalf("Unexpected error: %s", err)
 	}
-	files_reload := []string{
+	filesReload := []string{
 		ca.CertPath,
 		ca.KeyPath,
 		server.CertPath,
@@ -95,11 +95,11 @@ func TestEnsureFullPKI(t *testing.T) {
 		client.CertPath,
 		client.KeyPath,
 	}
-	checkFilesExist(files_reload, t)
+	checkFilesExist(filesReload, t)
 
-	for idx, _ := range files_initial {
-		if files_initial[idx] != files_reload[idx] {
-			t.Fatalf("Files didn't match: '%s' vs '%s'", files_initial[idx], files_reload[idx])
+	for idx, _ := range filesInitial {
+		if filesInitial[idx] != filesReload[idx] {
+			t.Fatalf("Files didn't match: '%s' vs '%s'", filesInitial[idx], filesReload[idx])
 		}
 	}
 
@@ -107,7 +107,7 @@ func TestEnsureFullPKI(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Unexpected error: %s", err)
 	}
-	files_special_ca := []string{
+	filesSpecialCa := []string{
 		ca.CertPath,
 		ca.KeyPath,
 		server.CertPath,
@@ -115,7 +115,7 @@ func TestEnsureFullPKI(t *testing.T) {
 		client.CertPath,
 		client.KeyPath,
 	}
-	checkFilesExist(files_special_ca, t)
+	checkFilesExist(filesSpecialCa, t)
 }
 
 func TestEnsureSigningCert(t *testing.T) {
@@ -150,26 +150,26 @@ func TestEnsureSigningCert(t *testing.T) {
 
 	// EnsureFullPKI uses the CertManager class to generate the certificates, which is tested separately
 	// We therefore assume that the individual certificates are generated correctly
-	files_initial := []string{
+	filesInitial := []string{
 		cert.CertPath,
 		cert.KeyPath,
 	}
-	checkFilesExist(files_initial, t)
+	checkFilesExist(filesInitial, t)
 
 	// Test reload
 	cert, err = dummy.ensureSigningCert(directory, "testpki3")
 	if err != nil {
 		t.Fatalf("Unexpected error: %s", err)
 	}
-	files_reload := []string{
+	filesReload := []string{
 		cert.CertPath,
 		cert.KeyPath,
 	}
-	checkFilesExist(files_reload, t)
+	checkFilesExist(filesReload, t)
 
-	for idx, _ := range files_initial {
-		if files_initial[idx] != files_reload[idx] {
-			t.Fatalf("Files didn't match: '%s' vs '%s'", files_initial[idx], files_reload[idx])
+	for idx, _ := range filesInitial {
+		if filesInitial[idx] != filesReload[idx] {
+			t.Fatalf("Files didn't match: '%s' vs '%s'", filesInitial[idx], filesReload[idx])
 		}
 	}
 }
@@ -186,7 +186,7 @@ func TestCreateOrLoadCertificates(t *testing.T) {
 	}
 	// CreateOrLoadCertificates uses the ensure* functions to generate the certificates, which are tested separately
 	// We therefore assume that the individual certificates are generated correctly
-	files_initial := []string{
+	filesInitial := []string{
 		creds.EtcdCA.KeyPath,
 		creds.EtcdCA.CertPath,
 		creds.EtcdClient.KeyPath,
@@ -204,7 +204,7 @@ func TestCreateOrLoadCertificates(t *testing.T) {
 		creds.KubeSvcSignCert.KeyPath,
 		creds.KubeSvcSignCert.CertPath,
 	}
-	checkFilesExist(files_initial, t)
+	checkFilesExist(filesInitial, t)
 
 	// Check whether reload produces the same files
 	creds = MicrokubeCredentials{}
@@ -214,7 +214,7 @@ func TestCreateOrLoadCertificates(t *testing.T) {
 	}
 	// CreateOrLoadCertificates uses the ensure* functions to generate the certificates, which are tested separately
 	// We therefore assume that the individual certificates are generated correctly
-	files_reload := []string{
+	filesReload := []string{
 		creds.EtcdCA.KeyPath,
 		creds.EtcdCA.CertPath,
 		creds.EtcdClient.KeyPath,
@@ -232,11 +232,11 @@ func TestCreateOrLoadCertificates(t *testing.T) {
 		creds.KubeSvcSignCert.KeyPath,
 		creds.KubeSvcSignCert.CertPath,
 	}
-	checkFilesExist(files_reload, t)
+	checkFilesExist(filesReload, t)
 
-	for idx, _ := range files_initial {
-		if files_initial[idx] != files_reload[idx] {
-			t.Fatalf("Files didn't match: '%s' vs '%s'", files_initial[idx], files_reload[idx])
+	for idx, _ := range filesInitial {
+		if filesInitial[idx] != filesReload[idx] {
+			t.Fatalf("Files didn't match: '%s' vs '%s'", filesInitial[idx], filesReload[idx])
 		}
 	}
 }

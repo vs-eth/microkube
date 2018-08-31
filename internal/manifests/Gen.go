@@ -1,3 +1,6 @@
+//go:generate go run ../../cmd/codegen/Manifest.go -name DNS -src ../../manifests/coredns.yml -dest DNS.go -package manifests
+//go:generate go run ../../cmd/codegen/Manifest.go -name KubeDash -src ../../manifests/kubernetes-dashboard.yaml -dest KubeDash.go -package manifests
+
 /*
  * Copyright 2018 The microkube authors
  *
@@ -14,23 +17,4 @@
  * limitations under the License.
  */
 
-package log
-
-import (
-	"github.com/pkg/errors"
-	"testing"
-)
-
-// TestErrors tests whether we correctly bail in case of a parse error
-func TestErrors(t *testing.T) {
-	uut := NewBaseLogParser(func(s string) error {
-		return errors.New("testerror")
-	}, "foobar")
-	err := uut.HandleData([]byte("\n\n"))
-	if err == nil {
-		t.Fatal("Expected error missing!")
-	}
-	if err.Error() != "Couldn't decode buffer: testerror" {
-		t.Fatalf("Unexpected error: %s!", err)
-	}
-}
+package manifests

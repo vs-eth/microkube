@@ -21,9 +21,29 @@ import (
 	"bufio"
 	"bytes"
 	"github.com/pkg/errors"
+	"github.com/sirupsen/logrus"
 	"strings"
 	"sync"
 )
+
+// loggerList contains a global map of loggers used so that instances can be associated with a logger
+var loggerList = make(map[string]*logrus.Logger)
+
+// loggerListMutex secures access to loggerList
+var loggerListMutex = sync.Mutex{}
+
+// GetLoggerFor creates (if necessary) and returns a logger for a log parser of name 'name'
+func GetLoggerFor(name string) *logrus.Logger {
+	loggerListMutex.Lock()
+	logPtr := loggerList[name]
+	if logPtr == nil {
+		logPtr = logrus.New()
+		loggerList[name] = logPtr
+	}
+	loggerListMutex.Unlock()
+
+	return logPtr
+}
 
 // LineHandlerFunc describes a function that is able to consume a log line
 type LineHandlerFunc func(string) error
@@ -42,16 +62,23 @@ type BaseLogParser struct {
 	bufReader   *bufio.Scanner
 	lineHandler LineHandlerFunc
 	mutex       *sync.Mutex
+	log         *logrus.Logger
 }
 
-// NewBaseLogParser creates a new log parser that uses the provided line handler
-func NewBaseLogParser(lineHandler LineHandlerFunc) *BaseLogParser {
+// NewBaseLogParser creates a new log parser that uses the provided line handler and a logger 'name'
+func NewBaseLogParser(lineHandler LineHandlerFunc, name string) *BaseLogParser {
 	obj := &BaseLogParser{
 		buf:         &bytes.Buffer{},
 		lineHandler: lineHandler,
 		mutex:       &sync.Mutex{},
+		log:         GetLoggerFor(name),
 	}
+
 	return obj
+}
+
+func (lp *BaseLogParser) SetLevel(level logrus.Level) {
+	lp.log.SetLevel(level)
 }
 
 // HandleData is invoked for each new buffer of data, see docs of interface type

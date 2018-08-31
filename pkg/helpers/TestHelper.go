@@ -61,6 +61,7 @@ func StartHandlerForTest(portbase int, name, binary string, constructor UUTConst
 		ExitHandler:   exitHandler,
 		Workdir:       tmpdir,
 		SudoMethod:    "sudo", // TODO: Make this nicer...
+		DNSAddress:    net.ParseIP("8.8.8.8"),
 	}
 	if execEnvArg == nil {
 		execEnv.InitPorts(portbase)

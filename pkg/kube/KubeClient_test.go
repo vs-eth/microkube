@@ -14,11 +14,12 @@
  * limitations under the License.
  */
 
-package cmd
+package kube
 
 import (
 	"context"
 	"github.com/sirupsen/logrus"
+	"github.com/stretchr/testify/assert"
 	"k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -81,7 +82,8 @@ func TestKubeClientWait(t *testing.T) {
 	uut := KubeClient{
 		client: fakeKube,
 	}
-	ctx, _ := context.WithTimeout(context.Background(), 1*time.Second)
+	ctx, cfunc := context.WithTimeout(context.Background(), 1*time.Second)
+	defer cfunc()
 	err := uut.WaitForNode(ctx)
 	if err == nil {
 		t.Fatal("Expected error missing")
@@ -95,7 +97,8 @@ func TestKubeClientWait(t *testing.T) {
 	uut = KubeClient{
 		client: fakeKube,
 	}
-	ctx, _ = context.WithTimeout(context.Background(), 1*time.Second)
+	ctx, cfunc = context.WithTimeout(context.Background(), 1*time.Second)
+	defer cfunc()
 	err = uut.WaitForNode(ctx)
 	if err != nil {
 		t.Fatalf("Unexpected error: '%s'", err)
@@ -106,7 +109,8 @@ func TestKubeClientWait(t *testing.T) {
 	uut = KubeClient{
 		client: fakeKube,
 	}
-	ctx, _ = context.WithTimeout(context.Background(), 1*time.Second)
+	ctx, cfunc = context.WithTimeout(context.Background(), 1*time.Second)
+	defer cfunc()
 	err = uut.WaitForNode(ctx)
 	if err != nil {
 		t.Fatalf("Unexpected error: '%s'", err)
@@ -138,4 +142,20 @@ func TestKubeClientDrain(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Unexpected error: '%s'", err)
 	}
+}
+
+// TestKubeClientFindFunctions tests whether KubeClient correctly returns error values in a cluster with unexpected
+// structur
+func TestKubeClientFindFunctions(t *testing.T) {
+	logrus.SetLevel(logrus.FatalLevel)
+
+	fakeKube := mockClientWithNode("test", false, true)
+	uut := KubeClient{
+		client: fakeKube,
+	}
+	res := uut.FindDashboardAdminSecret()
+	assert.Equal(t, res, "", "Unexpectedly found admin secret")
+	res, port := uut.FindService("dummy")
+	assert.Equal(t, res, "", "Unexpectedly found dashboard IP")
+	assert.Equal(t, port == 0, true, "Unexpectedly found dashboard port")
 }

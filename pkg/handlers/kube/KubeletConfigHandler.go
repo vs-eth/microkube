@@ -31,6 +31,7 @@ type kubeletConfigData struct {
 	KeyFile           string
 	StaticPodPath     string
 	KubeletHealthPort int
+	ClusterDNS        string
 }
 
 // CreateKubeletConfig creates a kubelet config from the arguments provided and stores it in 'path'
@@ -41,6 +42,7 @@ func CreateKubeletConfig(path string, creds *pki.MicrokubeCredentials, execEnv h
 		CertFile:          creds.KubeServer.CertPath,
 		KeyFile:           creds.KubeServer.KeyPath,
 		KubeletHealthPort: execEnv.KubeletHealthPort,
+		ClusterDNS:        execEnv.DNSAddress.String(),
 	}
 	tmplStr := `kind: KubeletConfiguration
 apiVersion: kubelet.config.k8s.io/v1beta1
@@ -57,6 +59,9 @@ healthzPort: {{ .KubeletHealthPort }}
 kubeletCgroups: "/systemd/system.slice"
 tlsCertFile: {{ .CertFile }}
 tlsPrivateKeyFile: {{ .KeyFile }}
+failSwapOn: False
+clusterDNS: 
+  - {{ .ClusterDNS }}
 `
 	tmpl, err := template.New("Kubelet").Parse(tmplStr)
 	if err != nil {

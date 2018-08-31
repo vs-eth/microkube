@@ -20,7 +20,9 @@ import (
 	"fmt"
 	"github.com/sirupsen/logrus"
 	"github.com/uubk/microkube/internal/cmd"
+	"github.com/uubk/microkube/pkg/handlers"
 	"io/ioutil"
+	"net"
 	"testing"
 	"time"
 )
@@ -41,16 +43,27 @@ func Test9IntegrationMicrokubed(t *testing.T) {
 		t.Fatalf("tempdir creation failed: '%s'", err)
 	}
 	obj.baseDir = rootdir
-	obj.podRangeNet, obj.serviceRangeNet, obj.clusterIPRange, obj.bindAddr, obj.serviceRangeIP, err =
+	baseExecEnv := handlers.ExecutionEnvironment{}
+	obj.podRangeNet, obj.serviceRangeNet, obj.clusterIPRange, baseExecEnv.ListenAddress, baseExecEnv.ServiceAddress, err =
 		cmd.CalculateIPRanges("192.168.250.1/24", "192.168.251.1/24")
 	if err != nil {
 		t.Fatalf("ipcalc failed: '%s'", err)
 	}
-	obj.sudoMethod = "/usr/bin/sudo"
+	dnsIP := net.IPv4(0, 0, 0, 0)
+	copy(dnsIP, baseExecEnv.ServiceAddress)
+	dnsIP[15]++
+	baseExecEnv.DNSAddress = dnsIP
+	baseExecEnv.SudoMethod = "/usr/bin/sudo"
+	baseExecEnv.InitPorts(7000)
+	obj.baseExecEnv = baseExecEnv
+
 	obj.gracefulTerminationMode = false
 	obj.start()
 	obj.waitUntilNodeReady()
 	obj.enableHealthChecks()
+	// This should make all health checks execute once since they're on a ten second timer
+	time.Sleep(15 * time.Second)
+	obj.startServices()
 	// This should make all health checks execute once since they're on a ten second timer
 	time.Sleep(15 * time.Second)
 	// Cluster is running, node is healthy, we're done here

@@ -82,7 +82,8 @@ func TestEcho(t *testing.T) {
 		t.Fatalf("Coudln't start program")
 		return
 	}
-	ctx, _ := context.WithTimeout(context.Background(), 2*time.Second)
+	ctx, cfunc := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cfunc()
 	exitChecked, stdoutChecked := false, false
 	stdout := ""
 	for {
@@ -98,7 +99,8 @@ func TestEcho(t *testing.T) {
 			break
 		}
 	}
-	ctx, _ = context.WithTimeout(context.Background(), 2*time.Second)
+	ctx, cfunc = context.WithTimeout(context.Background(), 2*time.Second)
+	defer cfunc()
 	select {
 	case <-exitWaiter:
 		exitChecked = true

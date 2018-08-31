@@ -29,7 +29,7 @@ left to do manually:
 * If you want to run tests or run microkube from the repository, create a folder `third_party` in the repository root and copy all binaries there
 * If you're only interested in running `microkubed` from the command line, you can also specify the folder with the binaries as `-extra-bin-dir`
 * Since there is no `Makefile` right now, `go build github.com/uubk/microkube/cmd/microkubed` will give you the main binary
-* Running it requires `pkexec` from Polkit (for obtaining root for `kube-proxy` and `kubelet`)
+* Running it requires `pkexec` from Polkit (for obtaining root for `kube-proxy` and `kubelet`) and `conntrack` + `iptables` for `kube-proxy`
 * Unittests additionally require the `openssl` command line utility
 * Regenerating the log parser requires [ldetool](https://github.com/sirkon/ldetool)
 

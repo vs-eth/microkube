@@ -25,11 +25,6 @@ import (
 // TestETCDMessageTypes tests all etcd message types
 func TestETCDMessageTypes(t *testing.T) {
 	var buffer bytes.Buffer
-	logrus.SetLevel(logrus.DebugLevel)
-	logrus.SetOutput(&buffer)
-	logrus.SetFormatter(&logrus.JSONFormatter{
-		DisableTimestamp: true,
-	})
 	testStr := `2018-08-12 14:13:48.437712 I | etcdserver: published {Name:default ClientURLs:[https://localhost:2379]} to cluster cdf818194e3a8c32
 2018-08-12 14:13:48.437712 E | etcdserver: published {Name:default ClientURLs:[https://localhost:2379]} to cluster cdf818194e3a8c32
 2018-08-12 14:13:48.437712 W | etcdserver: published {Name:default ClientURLs:[https://localhost:2379]} to cluster cdf818194e3a8c32
@@ -38,6 +33,11 @@ func TestETCDMessageTypes(t *testing.T) {
 2018-08-12 14:13:48.437712 C | etcdserver: published {Name:default ClientURLs:[https://localhost:2379]} to cluster cdf818194e3a8c32
 `
 	uut := NewETCDLogParser()
+	uut.log.SetLevel(logrus.DebugLevel)
+	uut.log.SetOutput(&buffer)
+	uut.log.Formatter = &logrus.JSONFormatter{
+		DisableTimestamp: true,
+	}
 	err := uut.HandleData([]byte(testStr))
 	if err != nil {
 		t.Fatalf("Unexpected error: %s", err)
@@ -57,13 +57,13 @@ func TestETCDMessageTypes(t *testing.T) {
 // TestInvalidETCDMessage tests an invalid etcd message
 func TestInvalidETCDMessage(t *testing.T) {
 	var buffer bytes.Buffer
-	logrus.SetLevel(logrus.DebugLevel)
-	logrus.SetOutput(&buffer)
-	logrus.SetFormatter(&logrus.JSONFormatter{
-		DisableTimestamp: true,
-	})
 	testStr := "2018-08-12 14:13:48.437712 X |\n"
 	uut := NewETCDLogParser()
+	uut.log.SetLevel(logrus.DebugLevel)
+	uut.log.SetOutput(&buffer)
+	uut.log.Formatter = &logrus.JSONFormatter{
+		DisableTimestamp: true,
+	}
 	err := uut.HandleData([]byte(testStr))
 	if err != nil {
 		t.Fatalf("Unexpected error: %s", err)
@@ -77,13 +77,13 @@ func TestInvalidETCDMessage(t *testing.T) {
 // TestInvalidETCDMessageType tests an invalid etcd message type
 func TestInvalidETCDMessageType(t *testing.T) {
 	var buffer bytes.Buffer
-	logrus.SetLevel(logrus.DebugLevel)
-	logrus.SetOutput(&buffer)
-	logrus.SetFormatter(&logrus.JSONFormatter{
-		DisableTimestamp: true,
-	})
 	testStr := "2018-08-12 14:13:48.437712 X | etcdserver: published {Name:default ClientURLs:[https://localhost:2379]} to cluster cdf818194e3a8c32\n"
 	uut := NewETCDLogParser()
+	uut.log.SetLevel(logrus.DebugLevel)
+	uut.log.SetOutput(&buffer)
+	uut.log.Formatter = &logrus.JSONFormatter{
+		DisableTimestamp: true,
+	}
 	err := uut.HandleData([]byte(testStr))
 	if err != nil {
 		t.Fatalf("Unexpected error: %s", err)
@@ -96,18 +96,18 @@ func TestInvalidETCDMessageType(t *testing.T) {
 	}
 }
 
-// TestETCDSpamDrop tests whether some etcd log messages are dropped correclty
+// TestETCDSpamDrop tests whether some etcd log messages are dropped correctly
 func TestETCDSystemdSpamDrop(t *testing.T) {
 	var buffer bytes.Buffer
-	logrus.SetLevel(logrus.DebugLevel)
-	logrus.SetOutput(&buffer)
-	logrus.SetFormatter(&logrus.JSONFormatter{
-		DisableTimestamp: true,
-	})
 	testStr := `2018-08-20 14:43:34.123265 I | embed: rejected connection from "127.0.0.1:35606" (error "EOF", ServerName "")
 2018-08-20 14:43:34.786265 E | etcdmain: forgot to set Type=notify in systemd service file?
 `
 	uut := NewETCDLogParser()
+	uut.log.SetLevel(logrus.DebugLevel)
+	uut.log.SetOutput(&buffer)
+	uut.log.Formatter = &logrus.JSONFormatter{
+		DisableTimestamp: true,
+	}
 	err := uut.HandleData([]byte(testStr))
 	if err != nil {
 		t.Fatalf("Unexpected error: %s", err)
@@ -121,12 +121,13 @@ func TestETCDSystemdSpamDrop(t *testing.T) {
 // TestInfoMessage tests a single etcd info message
 func TestInfoMessage(t *testing.T) {
 	var buffer bytes.Buffer
-	logrus.SetOutput(&buffer)
-	logrus.SetFormatter(&logrus.JSONFormatter{
-		DisableTimestamp: true,
-	})
 	testStr := "2018-08-12 14:13:48.437712 I | etcdserver: published {Name:default ClientURLs:[https://localhost:2379]} to cluster cdf818194e3a8c32\n"
 	uut := NewETCDLogParser()
+	uut.log.SetLevel(logrus.DebugLevel)
+	uut.log.SetOutput(&buffer)
+	uut.log.Formatter = &logrus.JSONFormatter{
+		DisableTimestamp: true,
+	}
 	err := uut.HandleData([]byte(testStr))
 	if err != nil {
 		t.Fatalf("Unexpected error: %s", err)
@@ -140,12 +141,13 @@ func TestInfoMessage(t *testing.T) {
 // TestInfoMessageSplit tests a single etcd info message but feeding it byte-for-byte
 func TestInfoMessageSplit(t *testing.T) {
 	var buffer bytes.Buffer
-	logrus.SetOutput(&buffer)
-	logrus.SetFormatter(&logrus.JSONFormatter{
-		DisableTimestamp: true,
-	})
 	testStr := "2018-08-12 14:13:48.437712 I | etcdserver: published {Name:default ClientURLs:[https://localhost:2379]} to cluster cdf818194e3a8c32\n"
 	uut := NewETCDLogParser()
+	uut.log.SetLevel(logrus.DebugLevel)
+	uut.log.SetOutput(&buffer)
+	uut.log.Formatter = &logrus.JSONFormatter{
+		DisableTimestamp: true,
+	}
 	// Punch in message character-by-character to catch splitting bugs
 	for _, character := range testStr {
 		singleChar := string(character)
@@ -163,16 +165,17 @@ func TestInfoMessageSplit(t *testing.T) {
 // TestInfoMessage tests multiple etcd info messages
 func TestInfoMessageSplitMultiline(t *testing.T) {
 	var buffer bytes.Buffer
-	logrus.SetOutput(&buffer)
-	logrus.SetFormatter(&logrus.JSONFormatter{
-		DisableTimestamp: true,
-	})
 	testStr := `2018-08-12 16:18:18.718670 I | etcdmain: etcd Version: 3.3.9
 2018-08-12 16:18:18.718734 I | etcdmain: Git SHA: fca8add78
 2018-08-12 16:18:18.718740 I | etcdmain: Go Version: go1.10.3
 2018-08-12 16:18:18.718745 I | etcdmain: Go OS/Arch: linux/amd64
 `
 	uut := NewETCDLogParser()
+	uut.log.SetLevel(logrus.DebugLevel)
+	uut.log.SetOutput(&buffer)
+	uut.log.Formatter = &logrus.JSONFormatter{
+		DisableTimestamp: true,
+	}
 	// Punch in message character-by-character to catch splitting bugs
 	for _, character := range testStr {
 		singleChar := string(character)
