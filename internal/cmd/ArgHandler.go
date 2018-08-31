@@ -60,6 +60,8 @@ type ArgHandler struct {
 	EnableKubeDash bool
 	// Whether to deploy the CoreDNS cluster addon
 	EnableDns bool
+	// Whether to include verbose log output
+	Verbose bool
 
 	// Whether we should set up all arguments (main binary) or only shared arguments (cluster parameters)
 	isMainBinary bool
@@ -143,6 +145,7 @@ func (a *ArgHandler) evalArgs() *handlers.ExecutionEnvironment {
 
 	a.EnableKubeDash = gs.enableKubeDash
 	a.EnableDns = gs.enableDns
+	a.Verbose = gs.verbose
 
 	baseExecEnv := handlers.ExecutionEnvironment{}
 	baseExecEnv.ListenAddress = bindAddr

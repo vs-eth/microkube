@@ -35,6 +35,7 @@ import (
 	"os/exec"
 	"os/signal"
 	"path"
+	"strings"
 	"time"
 )
 
@@ -80,6 +81,12 @@ type Microkubed struct {
 
 	// A list of running services
 	serviceList []serviceEntry
+	// Whether to deploy the kubernetes dashboard cluster addon
+	enableKubeDash bool
+	// Whether to deploy the CoreDNS cluster addon
+	enableDns bool
+	// Kubernetes client used for checking node status and service information
+	kCl *kube2.KubeClient
 }
 
 // Create directories and copy CNI plugins if appropriate
@@ -165,7 +172,7 @@ func (m *Microkubed) startEtcd() {
 		return etcd.NewEtcdHandler(execEnv, m.cred), nil
 	}, log2.NewETCDLogParser())
 	m.serviceHandlers = append(m.serviceHandlers, etcdHandler)
-	log.Debug("ETCD ready")
+	log.Info("ETCD ready")
 
 	m.serviceList = append(m.serviceList, serviceEntry{
 		handler:    etcdHandler,
@@ -177,7 +184,7 @@ func (m *Microkubed) startEtcd() {
 
 // Start Kube APIServer
 func (m *Microkubed) startKubeAPIServer() {
-	log.Debug("Starting kube api server...")
+	log.Info("Starting kube api server...")
 	kubeAPIHandler, kubeAPIChan, kubeAPIHealthChan := m.startService("kube-apiserver",
 		func(kubeAPIOutputHandler handlers.OutputHandler,
 			kubeAPIExitHandler handlers.ExitHandler) (handlers.ServiceHandler, error) {
@@ -191,10 +198,10 @@ func (m *Microkubed) startKubeAPIServer() {
 			return kube.NewKubeAPIServerHandler(execEnv, m.cred, m.serviceRangeNet.String()), nil
 		}, log2.NewKubeLogParser("kube-api"))
 	m.serviceHandlers = append(m.serviceHandlers, kubeAPIHandler)
-	log.Debug("Kube api server ready")
+	log.Info("Kube api server ready")
 
 	// Generate kubeconfig for kubelet and kubectl
-	log.Debug("Generating kubeconfig...")
+	log.Info("Generating kubeconfig...")
 	kubeconfig := path.Join(m.baseDir, "kube/", "kubeconfig")
 	_, err := os.Stat(kubeconfig)
 	if err != nil {
@@ -217,7 +224,7 @@ func (m *Microkubed) startKubeAPIServer() {
 
 // Start controller-manager
 func (m *Microkubed) startKubeControllerManager() {
-	log.Debug("Starting controller-manager...")
+	log.Info("Starting controller-manager...")
 	kubeCtrlMgrHandler, kubeCtrlMgrChan, kubeCtrlMgrHealthChan := m.startService("kube-controller-manager",
 		func(kubeCtrlMgrOutputHandler handlers.OutputHandler,
 			kubeCtrlMgrExitHandler handlers.ExitHandler) (handlers.ServiceHandler, error) {
@@ -231,7 +238,7 @@ func (m *Microkubed) startKubeControllerManager() {
 			return kube.NewControllerManagerHandler(execEnv, m.cred, m.podRangeNet.String()), nil
 		}, log2.NewKubeLogParser("kube-controller-manager"))
 	m.serviceHandlers = append(m.serviceHandlers, kubeCtrlMgrHandler)
-	log.Debug("Kube controller-manager ready")
+	log.Info("Kube controller-manager ready")
 
 	m.serviceList = append(m.serviceList, serviceEntry{
 		handler:    kubeCtrlMgrHandler,
@@ -243,7 +250,7 @@ func (m *Microkubed) startKubeControllerManager() {
 
 // Start scheduler
 func (m *Microkubed) startKubeScheduler() {
-	log.Debug("Starting kube-scheduler...")
+	log.Info("Starting kube-scheduler...")
 	kubeSchedHandler, kubeSchedChan, kubeSchedHealthChan := m.startService("kube-scheduler",
 		func(kubeSchedOutputHandler handlers.OutputHandler,
 			kubeSchedExitHandler handlers.ExitHandler) (handlers.ServiceHandler, error) {
@@ -258,7 +265,7 @@ func (m *Microkubed) startKubeScheduler() {
 			return kube.NewKubeSchedulerHandler(execEnv, m.cred)
 		}, log2.NewKubeLogParser("kube-scheduler"))
 	m.serviceHandlers = append(m.serviceHandlers, kubeSchedHandler)
-	log.Debug("Kube-scheduler ready")
+	log.Info("Kube-scheduler ready")
 
 	m.serviceList = append(m.serviceList, serviceEntry{
 		handler:    kubeSchedHandler,
@@ -270,7 +277,7 @@ func (m *Microkubed) startKubeScheduler() {
 
 // Start kubelet
 func (m *Microkubed) startKubelet() {
-	log.Debug("Starting kubelet...")
+	log.Info("Starting kubelet...")
 	kubeletHandler, kubeletChan, kubeletHealthChan := m.startService("kubelet",
 		func(kubeletOutputHandler handlers.OutputHandler,
 			kubeletExitHandler handlers.ExitHandler) (handlers.ServiceHandler, error) {
@@ -285,7 +292,7 @@ func (m *Microkubed) startKubelet() {
 			return kube.NewKubeletHandler(execEnv, m.cred)
 		}, log2.NewKubeLogParser("kubelet"))
 	m.serviceHandlers = append(m.serviceHandlers, kubeletHandler)
-	log.Debug("Kubelet ready")
+	log.Info("Kubelet ready")
 
 	m.serviceList = append(m.serviceList, serviceEntry{
 		handler:    kubeletHandler,
@@ -297,7 +304,7 @@ func (m *Microkubed) startKubelet() {
 
 // Start kube-proxy
 func (m *Microkubed) startKubeProxy() {
-	log.Debug("Starting kube-proxy...")
+	log.Info("Starting kube-proxy...")
 	kubeProxyHandler, kubeProxyChan, kubeProxyHealthChan := m.startService("kube-proxy",
 		func(output handlers.OutputHandler, exit handlers.ExitHandler) (handlers.ServiceHandler, error) {
 
@@ -312,7 +319,7 @@ func (m *Microkubed) startKubeProxy() {
 		}, log2.NewKubeLogParser("kube-proxy"))
 	defer kubeProxyHandler.Stop()
 	m.serviceHandlers = append(m.serviceHandlers, kubeProxyHandler)
-	log.Debug("kube-proxy ready")
+	log.Info("kube-proxy ready")
 
 	m.serviceList = append(m.serviceList, serviceEntry{
 		handler:    kubeProxyHandler,
@@ -364,19 +371,20 @@ func (m *Microkubed) enableHealthChecks() {
 
 // Wait until node is ready
 func (m *Microkubed) waitUntilNodeReady() chan bool {
-	kCl, err := kube2.NewKubeClient(path.Join(m.baseDir, "kube/", "kubeconfig"))
+	var err error
+	m.kCl, err = kube2.NewKubeClient(path.Join(m.baseDir, "kube/", "kubeconfig"))
 	if err != nil {
 		log.WithError(err).Fatalf("Couldn't init kube client")
 	}
 	log.Info("Waiting for node...")
-	kCl.WaitForNode(context.Background())
+	m.kCl.WaitForNode(context.Background())
 	// Since we got to this point: Handle quitting gracefully (that is stop all pods!)
 	sigChan := make(chan os.Signal, 1)
 	exitChan := make(chan bool, 1)
 	go func() {
 		<-sigChan
 		log.Info("Shutting down...")
-		kCl.DrainNode(context.Background())
+		m.kCl.DrainNode(context.Background())
 		exitChan <- true
 	}()
 	// Unregister "terminate immediately" serviceHandlers set during startup
@@ -389,31 +397,97 @@ func (m *Microkubed) waitUntilNodeReady() chan bool {
 	return exitChan
 }
 
+// startServices deploys certain manifests into the cluster
 func (m *Microkubed) startServices() {
-	services := []manifests.KubeManifestConstructor{
-		manifests.NewDNS,
+	services := []manifests.KubeManifestConstructor{}
+	if m.enableKubeDash {
+		services = append(services, manifests.NewKubeDash)
+	}
+	if m.enableDns {
+		services = append(services, manifests.NewDNS)
 	}
 	kmri := manifests.KubeManifestRuntimeInfo{
 		ExecEnv: m.baseExecEnv,
 	}
 
-	logCtx := log.WithFields(log.Fields{
-		"app":       "microkube",
-		"component": "services",
-	})
 	for _, service := range services {
-		dnsManifest, err := service(kmri)
+		manifest, err := service(kmri)
+		logCtx := log.WithFields(log.Fields{
+			"app":       "microkube",
+			"component": "services",
+			"service":   manifest.Name(),
+		})
 		if err != nil {
 			logCtx.WithError(err).Warn("Couldn't init service!")
 			continue
 		}
 
-		err = dnsManifest.ApplyToCluster(m.cred.Kubeconfig)
+		err = manifest.ApplyToCluster(m.cred.Kubeconfig)
 		if err != nil {
 			logCtx.WithError(err).Warn("Couldn't apply service to cluster!")
 			continue
 		}
+		err = manifest.InitHealthCheck(m.cred.Kubeconfig)
+		if err != nil {
+			logCtx.WithError(err).Warn("Couldn't initialize health check!")
+			continue
+		}
+
+		go func() {
+			// Delay first report since the service needs some time to start
+			time.Sleep(30 * time.Second)
+			for {
+				ok, err := manifest.IsHealthy()
+				if !ok {
+					logCtx.WithError(err).Warn("Service is unhealthy!")
+				} else {
+					logCtx.Debug("Service is healthy")
+				}
+				time.Sleep(10 * time.Second)
+			}
+		}()
 	}
+}
+
+func printIndented(message string) {
+	msg := ""
+	if message == "" {
+		msg = strings.Repeat("#", 120)
+	} else {
+		pad := (120 - len(message) - 2) / 2
+		msg = msg + strings.Repeat("#", pad)
+		msg = msg + " " + message + " "
+		msg = msg + strings.Repeat("#", pad)
+	}
+	log.Info(msg)
+}
+
+func (m *Microkubed) PrintInfoMessage() {
+	printIndented("")
+	printIndented("Microkube is up!")
+	printIndented("")
+	printIndented("Information")
+	log.Info("# To access the cluster, use the kubeconfig at '" + m.cred.Kubeconfig + "'")
+	log.Info("# Example:")
+	log.Info("# kubectl --kubeconfig " + m.cred.Kubeconfig + " get service --all-namespaces")
+	log.Info("# The following 'Cluster Addons' are available:")
+
+	if m.enableKubeDash {
+		ip, port := m.kCl.FindService("kubernetes-dashboard")
+		secret := m.kCl.FindDashboardAdminSecret()
+		if ip != "" && port == 443 && secret != "" {
+			log.Info("# Kubernetes Dashboard at https://" + ip)
+			log.Info("# Sign in with Token: " + secret)
+			log.Info("# You might need to remove the line breaks first, depending on your terminal emulator :/")
+		}
+	}
+	if m.enableDns {
+		ip, port := m.kCl.FindService("kube-dns")
+		if ip != "" && port == 53 {
+			log.Info("# Core DNS at " + ip + "")
+		}
+	}
+	printIndented("")
 }
 
 // Run the actual command invocation. This function will not return until the program should exit
@@ -425,6 +499,13 @@ func (m *Microkubed) Run() {
 	m.podRangeNet = argHandler.PodRangeNet
 	m.serviceRangeNet = argHandler.ServiceRangeNet
 	m.clusterIPRange = argHandler.ClusterIPRange
+	m.enableDns = argHandler.EnableDns
+	m.enableKubeDash = argHandler.EnableKubeDash
+
+	if !argHandler.Verbose {
+		log2.GetLoggerFor("etcd").SetLevel(log.FatalLevel)
+		log2.GetLoggerFor("kube").SetLevel(log.FatalLevel)
+	}
 
 	m.gracefulTerminationMode = false
 	log.RegisterExitHandler(func() {
@@ -444,6 +525,8 @@ func (m *Microkubed) Run() {
 	m.enableHealthChecks()
 	// All good. Launch stuff
 	m.startServices()
+	// Print info message if allowed
+	m.PrintInfoMessage()
 
 	// Wait until exit
 	<-exitChan
@@ -477,7 +560,6 @@ func (m *Microkubed) start() {
 func (m *Microkubed) startService(name string, constructor serviceConstructor,
 	logParser log2.Parser) (handlers.ServiceHandler, chan bool, chan handlers.HealthMessage) {
 
-	log.Debug("Starting " + name + "...")
 	outputHandler := func(output []byte) {
 		err := logParser.HandleData(output)
 		if err != nil {
