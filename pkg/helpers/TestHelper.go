@@ -18,8 +18,8 @@ package helpers
 
 import (
 	"fmt"
-	"github.com/uubk/microkube/pkg/handlers"
-	"github.com/uubk/microkube/pkg/pki"
+	"github.com/vs-eth/microkube/pkg/handlers"
+	"github.com/vs-eth/microkube/pkg/pki"
 	"io/ioutil"
 	"net"
 	"time"

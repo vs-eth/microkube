@@ -17,7 +17,7 @@
 package etcd
 
 import (
-	"github.com/uubk/microkube/pkg/helpers"
+	"github.com/vs-eth/microkube/pkg/helpers"
 	"os/exec"
 	"testing"
 )

@@ -20,9 +20,9 @@ package etcd
 import (
 	"encoding/json"
 	"github.com/pkg/errors"
-	"github.com/uubk/microkube/pkg/handlers"
-	"github.com/uubk/microkube/pkg/helpers"
-	"github.com/uubk/microkube/pkg/pki"
+	"github.com/vs-eth/microkube/pkg/handlers"
+	"github.com/vs-eth/microkube/pkg/helpers"
+	"github.com/vs-eth/microkube/pkg/pki"
 	"io"
 	"strconv"
 )

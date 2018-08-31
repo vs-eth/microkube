@@ -18,7 +18,7 @@ package kube
 
 import (
 	"github.com/pkg/errors"
-	"github.com/uubk/microkube/pkg/handlers"
+	"github.com/vs-eth/microkube/pkg/handlers"
 	"os"
 	"text/template"
 )

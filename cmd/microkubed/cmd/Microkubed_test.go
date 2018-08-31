@@ -19,8 +19,8 @@ package cmd
 import (
 	"fmt"
 	"github.com/sirupsen/logrus"
-	"github.com/uubk/microkube/internal/cmd"
-	"github.com/uubk/microkube/pkg/handlers"
+	"github.com/vs-eth/microkube/internal/cmd"
+	"github.com/vs-eth/microkube/pkg/handlers"
 	"io/ioutil"
 	"net"
 	"testing"

@@ -21,7 +21,7 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"github.com/pkg/errors"
-	"github.com/uubk/microkube/pkg/pki"
+	"github.com/vs-eth/microkube/pkg/pki"
 	"io"
 	"io/ioutil"
 	"net"
@@ -42,7 +42,7 @@ type StartHandler func() error
 // result
 type HealthCheckValidatorFunction func(result *io.ReadCloser) error
 
-// BaseServiceHandler serves as a base type for all handlers in github.com/uubk/microkube/pkg/handlers,
+// BaseServiceHandler serves as a base type for all handlers in github.com/vs-eth/microkube/pkg/handlers,
 // bundling common functions
 type BaseServiceHandler struct {
 	// Is the health check goroutine running (that is, do we need to stop it)?

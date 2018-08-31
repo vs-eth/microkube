@@ -20,7 +20,7 @@ import (
 	"bufio"
 	"bytes"
 	"github.com/pkg/errors"
-	"github.com/uubk/microkube/pkg/helpers"
+	"github.com/vs-eth/microkube/pkg/helpers"
 	"io/ioutil"
 	"os/exec"
 	"path"

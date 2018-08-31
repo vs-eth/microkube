@@ -8,7 +8,7 @@ generate:
 	go generate -v ./...
 
 build:
-	go build -ldflags="-s -w" github.com/uubk/microkube/cmd/microkubed
+	go build -ldflags="-s -w" github.com/vs-eth/microkube/cmd/microkubed
 
 deps:
 	dep ensure

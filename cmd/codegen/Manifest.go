@@ -20,7 +20,7 @@ package main
 import (
 	"flag"
 	log "github.com/sirupsen/logrus"
-	"github.com/uubk/microkube/internal/manifests"
+	"github.com/vs-eth/microkube/internal/manifests"
 )
 
 // main executes the code generator
@@ -30,7 +30,7 @@ func main() {
 	srcArg := flag.String("src", "", "YAML manifest to parse")
 	dstArg := flag.String("dest", "", "Destination of source file")
 	dstMainArg := flag.String("main", "", "Destination of main file (optional)")
-	mainPkgBase := flag.String("package-base", "github.com/uubk/microkube/internal", "Destination of main file (optional)")
+	mainPkgBase := flag.String("package-base", "github.com/vs-eth/microkube/internal", "Destination of main file (optional)")
 
 	flag.Parse()
 

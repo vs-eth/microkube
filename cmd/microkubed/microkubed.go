@@ -17,7 +17,7 @@
 // Package main contains the microkubed run code ;)
 package main
 
-import "github.com/uubk/microkube/cmd/microkubed/cmd"
+import "github.com/vs-eth/microkube/cmd/microkubed/cmd"
 
 func main() {
 	obj := cmd.Microkubed{}
