@@ -25,7 +25,7 @@ import (
 func TestErrors(t *testing.T) {
 	uut := NewBaseLogParser(func(s string) error {
 		return errors.New("testerror")
-	})
+	}, "foobar")
 	err := uut.HandleData([]byte("\n\n"))
 	if err == nil {
 		t.Fatal("Expected error missing!")

@@ -25,13 +25,13 @@ import (
 // TestWarningMessage tests a single warning message
 func TestWarningMessage(t *testing.T) {
 	var buffer bytes.Buffer
-	logrus.SetLevel(logrus.DebugLevel)
-	logrus.SetOutput(&buffer)
-	logrus.SetFormatter(&logrus.JSONFormatter{
-		DisableTimestamp: true,
-	})
 	testStr := "W0812 17:00:08.194751   25997 genericapiserver.go:319] Skipping API scheduling.k8s.io/v1alpha1 because it has no resources.\n"
 	uut := NewKubeLogParser("testkubeapp")
+	uut.log.SetLevel(logrus.DebugLevel)
+	uut.log.SetOutput(&buffer)
+	uut.log.Formatter = &logrus.JSONFormatter{
+		DisableTimestamp: true,
+	}
 	err := uut.HandleData([]byte(testStr))
 	if err != nil {
 		t.Fatalf("Unexpected error: %s", err)
@@ -45,13 +45,13 @@ func TestWarningMessage(t *testing.T) {
 // TestWarningMessage tests a single 'restful' info message
 func TestRestfulMessage(t *testing.T) {
 	var buffer bytes.Buffer
-	logrus.SetLevel(logrus.DebugLevel)
-	logrus.SetOutput(&buffer)
-	logrus.SetFormatter(&logrus.JSONFormatter{
-		DisableTimestamp: true,
-	})
 	testStr := "[restful] 2018/08/12 17:00:09 log.go:33: [restful/swagger] listing is available at https://172.17.0.1:7443/swaggerapi\n"
 	uut := NewKubeLogParser("testkubeapp")
+	uut.log.SetLevel(logrus.DebugLevel)
+	uut.log.SetOutput(&buffer)
+	uut.log.Formatter = &logrus.JSONFormatter{
+		DisableTimestamp: true,
+	}
 	err := uut.HandleData([]byte(testStr))
 	if err != nil {
 		t.Fatalf("Unexpected error: %s", err)
@@ -65,11 +65,6 @@ func TestRestfulMessage(t *testing.T) {
 // TestKubeMessageTypes tests all kube message types
 func TestKubeMessageTypes(t *testing.T) {
 	var buffer bytes.Buffer
-	logrus.SetLevel(logrus.DebugLevel)
-	logrus.SetOutput(&buffer)
-	logrus.SetFormatter(&logrus.JSONFormatter{
-		DisableTimestamp: true,
-	})
 	testStr := `I0812 17:00:08.194751   25997 genericapiserver.go:319] Skipping API scheduling.k8s.io/v1alpha1 because it has no resources.
 E0812 17:00:08.194751   25997 genericapiserver.go:319] Skipping API scheduling.k8s.io/v1alpha1 because it has no resources.
 W0812 17:00:08.194751   25997 genericapiserver.go:319] Skipping API scheduling.k8s.io/v1alpha1 because it has no resources.
@@ -78,6 +73,11 @@ N0812 17:00:08.194751   25997 genericapiserver.go:319] Skipping API scheduling.k
 S0812 17:00:08.194751   25997 genericapiserver.go:319] Skipping API scheduling.k8s.io/v1alpha1 because it has no resources.
 `
 	uut := NewKubeLogParser("testkubeapp")
+	uut.log.SetLevel(logrus.DebugLevel)
+	uut.log.SetOutput(&buffer)
+	uut.log.Formatter = &logrus.JSONFormatter{
+		DisableTimestamp: true,
+	}
 	err := uut.HandleData([]byte(testStr))
 	if err != nil {
 		t.Fatalf("Unexpected error: %s", err)
@@ -97,13 +97,13 @@ S0812 17:00:08.194751   25997 genericapiserver.go:319] Skipping API scheduling.k
 // TestInvalidKubeMessageType tests an invalid kube log message type
 func TestInvalidKubeMessageType(t *testing.T) {
 	var buffer bytes.Buffer
-	logrus.SetLevel(logrus.DebugLevel)
-	logrus.SetOutput(&buffer)
-	logrus.SetFormatter(&logrus.JSONFormatter{
-		DisableTimestamp: true,
-	})
 	testStr := "X0812 17:00:08.194751   25997 genericapiserver.go:319] Skipping API scheduling.k8s.io/v1alpha1 because it has no resources.\n"
 	uut := NewKubeLogParser("testkubeapp")
+	uut.log.SetLevel(logrus.DebugLevel)
+	uut.log.SetOutput(&buffer)
+	uut.log.Formatter = &logrus.JSONFormatter{
+		DisableTimestamp: true,
+	}
 	err := uut.HandleData([]byte(testStr))
 	if err != nil {
 		t.Fatalf("Unexpected error: %s", err)
@@ -119,13 +119,13 @@ func TestInvalidKubeMessageType(t *testing.T) {
 // TestInvalidKubeMessage tests a completely invalid message
 func TestInvalidKubeMessag(t *testing.T) {
 	var buffer bytes.Buffer
-	logrus.SetLevel(logrus.DebugLevel)
-	logrus.SetOutput(&buffer)
-	logrus.SetFormatter(&logrus.JSONFormatter{
-		DisableTimestamp: true,
-	})
 	testStr := "foobarbaz\n"
 	uut := NewKubeLogParser("testkubeapp")
+	uut.log.SetLevel(logrus.DebugLevel)
+	uut.log.SetOutput(&buffer)
+	uut.log.Formatter = &logrus.JSONFormatter{
+		DisableTimestamp: true,
+	}
 	err := uut.HandleData([]byte(testStr))
 	if err != nil {
 		t.Fatalf("Unexpected error: %s", err)
@@ -139,13 +139,13 @@ func TestInvalidKubeMessag(t *testing.T) {
 // TestInvalidKubeMessage tests a completely invalid message
 func TestIncompleteKubeMessag(t *testing.T) {
 	var buffer bytes.Buffer
-	logrus.SetLevel(logrus.DebugLevel)
-	logrus.SetOutput(&buffer)
-	logrus.SetFormatter(&logrus.JSONFormatter{
-		DisableTimestamp: true,
-	})
 	testStr := "[restful] 2018/08/12 17:00:09 log.go:33: [restful/swagger]\n"
 	uut := NewKubeLogParser("testkubeapp")
+	uut.log.SetLevel(logrus.DebugLevel)
+	uut.log.SetOutput(&buffer)
+	uut.log.Formatter = &logrus.JSONFormatter{
+		DisableTimestamp: true,
+	}
 	err := uut.HandleData([]byte(testStr))
 	if err != nil {
 		t.Fatalf("Unexpected error: %s", err)

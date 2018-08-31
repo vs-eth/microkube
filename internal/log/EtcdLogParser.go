@@ -30,7 +30,7 @@ type ETCDLogParser struct {
 // NewETCDLogParser creates a ETCDLogParser
 func NewETCDLogParser() *ETCDLogParser {
 	obj := ETCDLogParser{}
-	obj.BaseLogParser = *NewBaseLogParser(obj.handleLine)
+	obj.BaseLogParser = *NewBaseLogParser(obj.handleLine, "etcd")
 	return &obj
 }
 
@@ -40,14 +40,14 @@ func (h *ETCDLogParser) handleLine(lineStr string) error {
 	ok, _ := line.Extract(lineStr) // With the current format, this function will never return an error
 	if !ok {
 		// Better to log with incorrect format than to drop the whole thing...
-		logrus.WithFields(logrus.Fields{
+		h.log.WithFields(logrus.Fields{
 			"component": "EtcdLogParser",
 			"app":       "etcd",
 		}).Warn(strings.Trim(lineStr, "\n"))
 		return nil
 	}
 
-	entry := logrus.WithFields(logrus.Fields{
+	entry := h.log.WithFields(logrus.Fields{
 		"app":       "etcd",
 		"component": string(line.Component),
 	})
@@ -80,7 +80,7 @@ func (h *ETCDLogParser) handleLine(lineStr string) error {
 	case "N": // Notice is handled as info...
 		entry.Info(line.Message)
 	default:
-		logrus.WithFields(logrus.Fields{
+		h.log.WithFields(logrus.Fields{
 			"component": "EtcdLogParser",
 			"app":       "microkube",
 			"level":     line.Severity,
