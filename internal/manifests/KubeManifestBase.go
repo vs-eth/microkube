@@ -17,6 +17,7 @@
 package manifests
 
 import (
+	"bytes"
 	"github.com/pkg/errors"
 	log "github.com/sirupsen/logrus"
 	"github.com/uubk/microkube/pkg/handlers"
@@ -47,6 +48,8 @@ type KubeManifestBase struct {
 	client kubernetes.Interface
 	// Same as 'healthObj', but parsed
 	healthObjParsed runtime.Object
+	// Name of this service
+	name string
 }
 
 // KubeManifest is implemented by all types that can be applied to a kube cluster as supported by KubeManifestBase
@@ -58,6 +61,8 @@ type KubeManifest interface {
 	IsHealthy() (bool, error)
 	// InitHealthCheck prepares this object for health checks
 	InitHealthCheck(kubeconfig string) error
+	// Name returns the name of this object's service
+	Name() string
 }
 
 type KubeManifestConstructor func(KubeManifestRuntimeInfo) (KubeManifest, error)
@@ -73,6 +78,16 @@ func (m *KubeManifestBase) Register(manifest string) {
 // object, you also need to call 'Register'. Only the last object registered will be considered.
 func (m *KubeManifestBase) RegisterHO(manifest string) {
 	m.healthObj = manifest
+}
+
+// Name returns  the name of this object's service
+func (m *KubeManifestBase) Name() string {
+	return m.name
+}
+
+// Set name sets the name of this object's service and is only supposed to be used by derived types!
+func (m *KubeManifestBase) SetName(name string) {
+	m.name = name
 }
 
 // ApplyToCluster applies this manifest to the kubernetes cluster specified in 'kubeconfig'
@@ -102,7 +117,8 @@ func (m *KubeManifestBase) ApplyToCluster(kubeconfig string) error {
 	// TODO(uubk): Find a nicer way to do this
 	// Invoking kubectl apply is probably the most future-proof way to do this, but it's also blowing up 4KB of YAML
 	// to around 50 MB of binary when generating one...
-	cmd := cmd2.NewKubectlCommand(nil, os.Stdout, os.Stderr)
+	buf := bytes.Buffer{}
+	cmd := cmd2.NewKubectlCommand(nil, &buf, os.Stderr)
 	args := []string{
 		"--kubeconfig=" + kubeconfig,
 		"apply",
@@ -131,13 +147,14 @@ func (m *KubeManifestBase) IsHealthy() (bool, error) {
 			return false, nil
 		}
 		log.WithFields(log.Fields{
-			"app":                 "manifest",
+			"component":           "services",
+			"service":             m.name,
 			"replicasReady":       realDep.Status.ReadyReplicas,
 			"replicasTotal":       realDep.Status.Replicas,
 			"replicasAvailable":   realDep.Status.AvailableReplicas,
 			"replicasUnavailable": realDep.Status.UnavailableReplicas,
 			"replicasUpdated":     realDep.Status.UpdatedReplicas,
-		}).Info("Deployment status")
+		}).Debug("Deployment status")
 		if realDep.Status.Replicas > realDep.Status.ReadyReplicas {
 			return false, nil
 		} else {
@@ -154,13 +171,14 @@ func (m *KubeManifestBase) IsHealthy() (bool, error) {
 			return false, nil
 		}
 		log.WithFields(log.Fields{
-			"app":                 "manifest",
+			"component":           "services",
+			"service":             m.name,
 			"replicasReady":       realDep.Status.ReadyReplicas,
 			"replicasTotal":       realDep.Status.Replicas,
 			"replicasAvailable":   realDep.Status.AvailableReplicas,
 			"replicasUnavailable": realDep.Status.UnavailableReplicas,
 			"replicasUpdated":     realDep.Status.UpdatedReplicas,
-		}).Info("Deployment status")
+		}).Debug("Deployment status")
 		if realDep.Status.Replicas > realDep.Status.ReadyReplicas {
 			return false, nil
 		} else {

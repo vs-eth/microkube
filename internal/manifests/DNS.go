@@ -25,6 +25,7 @@ type DNS struct {
 
 func NewDNS(rtEnv KubeManifestRuntimeInfo) (KubeManifest, error) {
 	obj := &DNS{}
+	obj.SetName("DNS")
 	var err error
 	var buf *bytes.Buffer
 	var tmpl *template.Template

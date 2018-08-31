@@ -310,6 +310,7 @@ func New` + m.name + `(rtEnv `)
 	}
 	bufWriter.WriteString(`KubeManifestRuntimeInfo) (KubeManifest, error) {
 	obj := &` + m.name + `{}
+	obj.SetName("` + m.name + `")
 	var err error
 	var buf *bytes.Buffer
 	var tmpl *template.Template

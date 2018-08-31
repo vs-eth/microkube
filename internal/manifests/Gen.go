@@ -1,4 +1,5 @@
-//go:generate go run ../../cmd/codegen/Manifest.go -name DNS -src ../../manifests/coredns.yml -dest DNS.go -package manifests -main dns/main.go
+//go:generate go run ../../cmd/codegen/Manifest.go -name DNS -src ../../manifests/coredns.yml -dest DNS.go -package manifests
+//go:generate go run ../../cmd/codegen/Manifest.go -name KubeDash -src ../../manifests/kubernetes-dashboard.yaml -dest KubeDash.go -package manifests
 
 /*
  * Copyright 2018 The microkube authors
