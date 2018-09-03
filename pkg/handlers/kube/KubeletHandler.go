@@ -97,6 +97,14 @@ func (handler *KubeletHandler) stop() {
 
 // Start starts the process, see interface docs
 func (handler *KubeletHandler) Start() error {
+	// Check whether CNI bin dir was prepared successfully
+	cniDir := path.Join(handler.rootDir, "kubelet/cni")
+	_, err := os.Stat(path.Join(cniDir, "bridge"))
+	if err != nil {
+		// Fall back to distribution default
+		cniDir = "/usr/lib/x86_64-linux-gnu/libexec/cni-plugins"
+	}
+
 	handler.cmd = helpers.NewCmdHandler(handler.sudoBin, []string{
 		handler.binary,
 		"kubelet",
@@ -107,7 +115,7 @@ func (handler *KubeletHandler) Start() error {
 		"--kubeconfig",
 		handler.kubeconfig,
 		"--cni-bin-dir",
-		path.Join(handler.rootDir, "kubelet/cni"),
+		cniDir,
 		"--root-dir",
 		path.Join(handler.rootDir, "kubelet"),
 		"--seccomp-profile-root",

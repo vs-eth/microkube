@@ -19,6 +19,7 @@ package cmd
 
 import (
 	"context"
+	"github.com/coreos/go-systemd/daemon"
 	log "github.com/sirupsen/logrus"
 	"github.com/vs-eth/microkube/internal/cmd"
 	log2 "github.com/vs-eth/microkube/internal/log"
@@ -124,20 +125,25 @@ func (m *Microkubed) createDirectories() {
 						"component": "prep",
 					})
 					lctx.WithError(err).Info("Couldn't link CNI plugin, trying to copy")
+					// Delete the destination, just in case we got a 0 byte file above...
+					os.Remove(destPath)
 					in, err := os.Open(pluginPath)
 					if err != nil {
 						lctx.WithError(err).Fatal("Couldn't open source file")
 					}
-					defer in.Close()
-					out, err := os.OpenFile(destPath, os.O_RDWR|os.O_CREATE, 0755)
+					out, err := os.OpenFile(destPath, os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0755)
 					if err != nil {
 						lctx.WithError(err).Fatal("Couldn't open destination file")
 					}
-					defer out.Close()
-					_, err = io.Copy(in, out)
+					n, err := io.Copy(in, out)
 					if err != nil {
 						lctx.WithError(err).Fatal("Couldn't copy file")
 					}
+					if n == 0 {
+						lctx.WithError(err).Fatal("File copy is empty!")
+					}
+					in.Close()
+					out.Close()
 				}
 			}
 		}
@@ -525,13 +531,19 @@ func (m *Microkubed) Run() {
 	m.startServices()
 	// Print info message if allowed
 	m.PrintInfoMessage()
+	daemon.SdNotify(false, daemon.SdNotifyReady)
 
 	// Wait until exit
 	<-exitChan
 	log.WithField("app", "microkube").Info("Exit signal received, stopping now.")
+	daemon.SdNotify(false, daemon.SdNotifyStopping)
 	for _, h := range m.serviceHandlers {
 		h.Stop()
 	}
+
+	// Give services time to stop. If we exit immediately, systemd will simply kill them.
+	time.Sleep(7 * time.Second)
+
 	return
 }
 
