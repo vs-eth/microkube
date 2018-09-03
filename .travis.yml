@@ -9,7 +9,7 @@ go:
 matrix:
   include:
   - env: PACKAGE=Yes
-    if: branch =~ ^release
+    if: branch =~ ^release OR tag IS present
   - env: PACKAGE=No
     if: branch !~ ^release
 
@@ -52,6 +52,7 @@ deploy:
     secure: hB4kjBLpr6+j7IRuqIP9DyqwJc6BuSZBtpDDwngDqRxGjtyMxj8TbgqM5OFx9xxECwh2UJ2zu/fyCVJv6tfEBHtjcDHH7OEgoXXw12Y4jR5Wi97J3NuXmFuXzT3elwhU0EqFTu7mn1ZkO2H33OWCijWZdpFGR9DGu5EeTOR3exSSRkSw+lbdPynkta3OL+g6SlgmhVcQpgCGF5KGbYQwwq184Ltyb4+3Wc3WibGGhnm7ZBblaTk6FntRKUD34kr1CMAP4OtxyriixRmHAHa1UfRQMoAeMM6ZvwsGfUj1LmH04kO4FOZXKLkqHIP2Y33pUD+ppIIn9XGLw6HXJIRKllxlbsQdIiZXreycPC5Kp7WcRdy2HRr97r4m7q5KCEWm0C8h/ElVqaFcyIjoHoPariLId+F0bJy7G6s411WiAE9dGgJ2nGeKhSEi7RNL29bre5ZCSsng1Vl9MfhBFBe/S9RtE2qlZ1V/pe3+awBraq5aXHw7bVucHkYfWGOMEVPC2wV3US4o2W3Oo08jxc9PWHGGJOlAl/0iCsxHvwkpNjwuo1kKxjeCGA3FNddr+IzLpfcQvjm1sTZerghtnJsUfhvdJS1KOiBRF/GW8U/zZEhXB34YK6EjkZgtR6H11s+6KyS/kRBT0GGFGof70SdFbOc9/PZ5mdtip0kazFf4aeY=
   file: "../microkube*deb"
   file_glob: true
+  skip_cleanup: true
   on:
     repo: vs-eth/microkube
     tags: true
