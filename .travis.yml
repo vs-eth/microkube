@@ -55,5 +55,5 @@ deploy:
   on:
     repo: vs-eth/microkube
     all_branches: true
-    condition: $TRAVIS_BRANCH =~ ^release
+    condition: branch =~ ^release
     tags: true
