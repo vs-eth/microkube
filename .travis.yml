@@ -54,6 +54,4 @@ deploy:
   file_glob: true
   on:
     repo: vs-eth/microkube
-    all_branches: true
-    condition: branch =~ ^release
     tags: true
