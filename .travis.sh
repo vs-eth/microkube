@@ -20,4 +20,4 @@ bash <(curl -s https://codecov.io/bash)
 if [ "${PACKAGE}" = "Yes" ] ; then
     # Do additional package build
     dpkg-buildpackage -us -uc -b
-else
+fi
