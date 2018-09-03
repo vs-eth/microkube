@@ -3,3 +3,4 @@ third_party
 vendor
 .idea
 microkubed
+obj-x86_64-linux-gnu

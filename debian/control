@@ -9,10 +9,11 @@ Vcs-Browser: https://github.com/vs-eth/microkube
 
 Package: microkubed
 Architecture: any
-Depends: ${shlibs:Depends}, ${misc:Depends}, kubernetes-hyperkube (=1.11.2), etcd-server (>=3.3.0), cni-plugins, docker-ce (>=18.06.1)
+Depends: ${shlibs:Depends}, ${misc:Depends}, kubernetes-hyperkube (=1.11.2), etcd-server (>=3.3.0),
+ cni-plugins, docker-ce (>=18.06), sudo, iptables, util-linux, conntrack
 Description: A small tool to quickly bootstrap a kubernetes cluster against a local docker daemon
 
 Package: microkube-dev
 Architecture: any
-Depends: ${shlibs:Depends}, ${misc:Depends}, microkubed
+Depends: ${shlibs:Depends}, ${misc:Depends}
 Description: A small tool to quickly bootstrap a kubernetes cluster against a local docker daemon
