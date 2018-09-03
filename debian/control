@@ -1,0 +1,18 @@
+Source: microkube
+Section: utils
+Priority: optional
+Maintainer: Maximilian Falkenstein <maximilian.falkenstein@vseth.ethz.ch>
+Build-Depends: debhelper (>=9), golang-go, binutils, kubernetes-hyperkube (=1.11.2), etcd-server (>=3.3.0), cni-plugins
+Standards-Version: 3.9.8
+Vcs-Git: https://github.com/vs-eth/microkube.git
+Vcs-Browser: https://github.com/vs-eth/microkube
+
+Package: microkubed
+Architecture: any
+Depends: ${shlibs:Depends}, ${misc:Depends}, kubernetes-hyperkube (=1.11.2), etcd-server (>=3.3.0), cni-plugins, docker-ce (>=18.06.1)
+Description: A small tool to quickly bootstrap a kubernetes cluster against a local docker daemon
+
+Package: microkube-dev
+Architecture: any
+Depends: ${shlibs:Depends}, ${misc:Depends}, microkubed
+Description: A small tool to quickly bootstrap a kubernetes cluster against a local docker daemon

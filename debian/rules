@@ -1,0 +1,16 @@
+#!/usr/bin/make -f
+
+export DH_OPTIONS
+export DH_GOPKG := github.com/vs-eth/microkube
+
+%:
+	dh $@ --buildsystem=golang --with=golang
+
+# Generate code early on, as it will not work as soon as the object dir exists
+override_dh_auto_configure:
+	make generate
+	dh_auto_configure $@
+
+# Integration tests have dependencies, so skip testing for the moment
+override_dh_auto_test:
+	/bin/true
