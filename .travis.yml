@@ -6,13 +6,11 @@ notifications:
 go:
 - "1.10.x"
 
-env:
-- PACKAGE=No
-
 matrix:
   include:
   - env: PACKAGE=Yes
     if: branch =~ ^release
+  - env: PACKAGE=No
 
 cache:
   directories:
