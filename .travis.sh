@@ -2,7 +2,7 @@
 
 set -e
 
-if [ "${PACKAGE}" = "Yes" ] ;
+if [ "${PACKAGE}" = "Yes" ] ; then
     # Do package build instead
     dpkg-buildpackage -us -uc -b
 else

@@ -7,13 +7,12 @@ go:
 - "1.10.x"
 
 env:
-- PACKAGE=Yes
 - PACKAGE=No
 
 matrix:
-  exclude:
+  include:
   - env: PACKAGE=Yes
-    if: branch != release
+    if: branch =~ ^release
 
 cache:
   directories:
