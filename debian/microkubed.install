@@ -1,0 +1,3 @@
+usr/bin/microkubed /usr/bin
+debian/microkubed.service /lib/systemd/system
+debian/microkubed-sudo /etc/sudoers.d/

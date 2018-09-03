@@ -1,0 +1,9 @@
+# microkube sudoers.d config file
+# -------------------------------
+# Kube proxy (iptables) and kubelet need root privileges
+# Making hyperkube suid is unsafe, since it's not intended to be used that way and also a multi-call binary
+# Making microkubed running as root is not a good idea since it doesn't actually need the privs and dropping them in
+# golang is hard.
+# Therefore we resort to sudo...
+
+mukube  ALL=NOPASSWD: /usr/bin/hyperkube

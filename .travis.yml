@@ -6,11 +6,17 @@ notifications:
 go:
 - "1.10.x"
 
+matrix:
+  include:
+  - env: PACKAGE=Yes
+    if: branch =~ ^release
+  - env: PACKAGE=No
+    if: branch !~ ^release
+
 cache:
   directories:
   - /home/travis/gopath/src/github.com/vs-eth/microkube/.deps
   - /home/travis/gopath/src/github.com/vs-eth/microkube/vendor
-  #- /home/travis/gopath/pkg/dep
 
 before_install:
 # We need glide, etcd, cni-plugins, nsenter and hyperkube
@@ -33,17 +39,21 @@ before_install:
 - docker run --rm -v /usr/bin:/target jpetazzo/nsenter
 
 script:
-- go test -race -coverprofile=cover1 -covermode=atomic -run 'Test[^9]' -v ./...
-- sudo killall etcd || /bin/true
-- sudo killall hyperkube || /bin/true
-- sudo rm -Rf /tmp/microkube* || /bin/true
-- go test -coverprofile=cover2 -covermode=atomic -run 'Test9' -v ./...
+- export PACKAGE && ./.travis.sh
 
 install:
 - dep ensure
 - go get -u github.com/sirkon/ldetool
 - make generate
 
-after_success:
-- cat cover1 cover2 > coverage.txt
-- bash <(curl -s https://codecov.io/bash)
+deploy:
+  provider: releases
+  api_key:
+    secure: hB4kjBLpr6+j7IRuqIP9DyqwJc6BuSZBtpDDwngDqRxGjtyMxj8TbgqM5OFx9xxECwh2UJ2zu/fyCVJv6tfEBHtjcDHH7OEgoXXw12Y4jR5Wi97J3NuXmFuXzT3elwhU0EqFTu7mn1ZkO2H33OWCijWZdpFGR9DGu5EeTOR3exSSRkSw+lbdPynkta3OL+g6SlgmhVcQpgCGF5KGbYQwwq184Ltyb4+3Wc3WibGGhnm7ZBblaTk6FntRKUD34kr1CMAP4OtxyriixRmHAHa1UfRQMoAeMM6ZvwsGfUj1LmH04kO4FOZXKLkqHIP2Y33pUD+ppIIn9XGLw6HXJIRKllxlbsQdIiZXreycPC5Kp7WcRdy2HRr97r4m7q5KCEWm0C8h/ElVqaFcyIjoHoPariLId+F0bJy7G6s411WiAE9dGgJ2nGeKhSEi7RNL29bre5ZCSsng1Vl9MfhBFBe/S9RtE2qlZ1V/pe3+awBraq5aXHw7bVucHkYfWGOMEVPC2wV3US4o2W3Oo08jxc9PWHGGJOlAl/0iCsxHvwkpNjwuo1kKxjeCGA3FNddr+IzLpfcQvjm1sTZerghtnJsUfhvdJS1KOiBRF/GW8U/zZEhXB34YK6EjkZgtR6H11s+6KyS/kRBT0GGFGof70SdFbOc9/PZ5mdtip0kazFf4aeY=
+  file: "../microkube*deb"
+  file_glob: true
+  on:
+    repo: vs-eth/microkube
+    all_branches: true
+    condition: $TRAVIS_BRANCH =~ ^release
+    tags: true

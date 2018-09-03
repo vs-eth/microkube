@@ -164,6 +164,7 @@ func FindBinary(name string, appDir, extraDir string) (string, error) {
 		path.Join(cwd, "third_party"),
 		path.Join(appDir, "third_party"),
 		extraDir,
+		"/usr/bin",
 	}
 	for _, candidate := range candidates {
 		test := path.Join(candidate, name)

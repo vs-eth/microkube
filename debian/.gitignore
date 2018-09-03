@@ -1,0 +1,10 @@
+microkube-dev
+autoreconf.after
+autoreconf.before
+*.log
+*.substvars
+tmp
+microkube
+*.debhelper
+debhelper-build-stamp
+files
