@@ -11,6 +11,7 @@ matrix:
   - env: PACKAGE=Yes
     if: branch =~ ^release
   - env: PACKAGE=No
+    if: branch !~ ^release
 
 cache:
   directories:
