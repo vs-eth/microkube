@@ -47,7 +47,7 @@ func CreateKubeletConfig(path string, creds *pki.MicrokubeCredentials, execEnv h
 	tmplStr := `kind: KubeletConfiguration
 apiVersion: kubelet.config.k8s.io/v1beta1
 evictionHard:
-    memory.available:  "2Gi"
+    memory.available:  "128Mi"
 authentication:
   anonymous:
     enabled: false
