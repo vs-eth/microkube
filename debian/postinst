@@ -6,8 +6,8 @@ case "$1" in
     configure)
         if ! getent passwd mukube > /dev/null ; then
             adduser --system --group --no-create-home --disabled-login --home /var/lib/mukube mukube
-            chown mukube:mukube /var/lib/mukube
         fi
+        chown mukube:mukube /var/lib/mukube
     ;;
 
     abort-upgrade|abort-remove|abort-deconfigure)

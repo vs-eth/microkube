@@ -5,7 +5,7 @@ Requires=docker.service
 Description=Microkube Kubernetes Launcher
 
 [Service]
-ExecStart=/usr/bin/microkubed -verbose -kube-dash=false -sudo /usr/bin/sudo -root /var/lib/mukube
+ExecStart=/usr/bin/microkubed -sudo /usr/bin/sudo -root /var/lib/mukube $MUOPTS
 Restart=always
 RestartSec=120
 Type=notify
@@ -15,6 +15,7 @@ TimeoutSec=5m
 NotifyAccess=main
 KillMode=mixed
 KillSignal=SIGINT
+EnvironmentFile=/etc/default/microkube
 
 [Install]
 WantedBy=multi-user.target
