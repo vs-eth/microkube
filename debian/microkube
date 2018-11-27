@@ -1,0 +1,32 @@
+# Options to pass to microkubed when starting as a systemd service
+
+# Available settings:
+#   -alsologtostderr
+#         log to standard error as well as files
+#   -dns
+#         Enable the DNS deployment (default true)
+#   -extra-bin-dir string
+#         Additional directory to search for executables
+#   -kube-dash
+#         Enable the kubernetes dashboard deployment (default true)
+#   -log_backtrace_at value
+#         when logging hits line file:N, emit a stack trace
+#   -log_dir string
+#         If non-empty, write log files in this directory
+#   -logtostderr
+#         log to standard error instead of files
+#   -pod-range string
+#         Pod IP range to use (default "10.233.42.1/24")
+#   -service-range string
+#         Service IP range to use (default "10.233.43.1/24")
+#   -stderrthreshold value
+#         logs at or above this threshold go to stderr
+#   -v value
+#         log level for V logs
+#   -verbose
+#         Enable verbose output
+#   -vmodule value
+#         comma-separated list of pattern=N settings for file-filtered logging
+# (sudo and root are hardcoded)
+
+MUOPTS="-verbose -kube-dash=false"

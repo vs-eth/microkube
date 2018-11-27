@@ -4,7 +4,7 @@ autoreconf.before
 *.log
 *.substvars
 tmp
-microkube
+microkubed
 *.debhelper
 debhelper-build-stamp
 files
