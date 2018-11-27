@@ -5,7 +5,7 @@ set -e
 
 if [ "${PACKAGE}" = "Yes" ] ; then
     # Install packaging dependencies
-    sudo apt update && sudo apt install -y -q rsync golang-go binutils dpkg-dev build-essential fakeroot debhelper dh-golang
+    sudo apt update && sudo apt install -y -q rsync golang-go binutils dpkg-dev build-essential fakeroot debhelper dh-golang dh-systemd
 fi
 
 # Do normal test build
