@@ -1,7 +1,7 @@
 [Unit]
 Wants=network-online.target
 After=network.target network-online.target docker.socket
-Requires=docker.socket
+Requires=docker.service
 Description=Microkube Kubernetes Launcher
 
 [Service]
